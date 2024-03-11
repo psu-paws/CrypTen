@@ -5,6 +5,11 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
+
+# Copyright (c) Kiwan Maeng
+#
+# This source code was modified for the TODO project.
+
 import functools
 import math
 import operator
@@ -26,7 +31,7 @@ def implements(torch_function):
 HANDLED_FUNCTIONS = {}
 
 
-class CUDALongTensor:
+class CUDALongTensor(object):
     """
     A wrapper class for `torch.cuda.LongTensor`. When performing operations that are
     currently not supported for `torch.cuda.LongTensor` (e.g `matmul`, `conv2d`), it will
@@ -188,18 +193,26 @@ class CUDALongTensor:
 
     @staticmethod
     def __patched_conv_ops(op, x, y, *args, **kwargs):
+        # Kiwan: Fixed following a comment from https://github.com/facebookresearch/CrypTen/issues/386
+        # to make Conv2d training work on GPU
         if "groups" in kwargs:
             groups = kwargs["groups"]
-            assert (
-                groups == 1
-            ), f"more than one group is unsupported on GPU (groups = {groups})"
+            #assert (
+            #    groups == 1
+            #), f"more than one group is unsupported on GPU (groups = {groups})"
             del kwargs["groups"]
+        else:
+            groups = 1
 
         bs, c, *img = x.size()
         c_out, c_in, *ks = y.size()
         kernel_elements = functools.reduce(operator.mul, ks)
 
-        nb = 3 if kernel_elements < 256 else 4
+        # Kiwan: nb = 3 causes overflow. Fix to nb = 4
+        # Related: https://github.com/facebookresearch/CrypTen/issues/307
+
+        #nb = 3 if kernel_elements < 256 else 4
+        nb = 4
         nb2 = nb**2
 
         x_encoded = CUDALongTensor.__encode_as_fp64(x, nb).data
@@ -215,7 +228,7 @@ class CUDALongTensor:
         c_z = c_out if op in ["conv1d", "conv2d"] else c_in
 
         z_encoded = getattr(torch, op)(
-            x_enc_span, y_enc_span, *args, **kwargs, groups=nb2
+            x_enc_span, y_enc_span, *args, **kwargs, groups=(nb2 * groups)
         )
         z_encoded = z_encoded.reshape(bs, nb2, c_z, *z_encoded.size()[2:]).transpose_(
             0, 1
@@ -241,8 +254,12 @@ class CUDALongTensor:
     @staticmethod
     @implements(torch.matmul)
     def matmul(x, y, *args, **kwargs):
+        # Kiwan: nb = 3 causes overflow. Fix to nb = 4
+        # Related: https://github.com/facebookresearch/CrypTen/issues/307
+
         # Use 4 blocks if each dot product is 256 elements or larger to prevent overflow in the sum
-        nb = 3 if x.size(-1) < 256 else 4
+        #nb = 3 if x.size(-1) < 256 else 4
+        nb = 4
 
         # Prepend 1 to the dimension of x or y if it is 1-dimensional
         remove_x, remove_y = False, False
