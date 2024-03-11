@@ -523,12 +523,14 @@ class Module:
                         "Please make sure you feed your model CrypTensors when needed.",
                         DeprecationWarning,
                     )
+            '''
             elif not self.encrypted:
                 if any(isinstance(arg, crypten.CrypTensor) for arg in args):
                     raise RuntimeError(
                         "Cannot input CrypTensors into unencrypted model. "
                         "Encrypt the model before feeding it CrypTensors."
                     )
+            '''
             return object.__getattribute__(self, name)(*tuple(args), **kwargs)
 
         return forward_function
