@@ -11,7 +11,6 @@ import crypten
 import torch
 from crypten.config import cfg
 
-
 __all__ = [
     "exp",
     "log",
@@ -45,10 +44,24 @@ def exp(self):
     config.exp_iterations.
     """  # noqa: W605
     iters = cfg.functions.exp_iterations
+    mode = cfg.functions.exp_method
+
+    if mode == "exact":
+        plain = self.get_plain_text()
+        plain = plain.exp()
+        result = crypten.cryptensor(plain)
+        #print(f"Exp input {self.get_plain_text()}")
+        #print(f"Exp output {result.get_plain_text()}")
+        return result
 
     result = 1 + self.div(2**iters)
+    if mode == "suppress_small":
+        #result = result.where(self > -450, 0.)
+        result = result.where(self > -11, 0.)
     for _ in range(iters):
         result = result.square()
+    #print(f"Exp input {self.get_plain_text()}")
+    #print(f"Exp output {result.get_plain_text()}")
     return result
 
 
@@ -156,9 +169,10 @@ def reciprocal(self, input_in_01=False):
     if method == "NR":
         nr_iters = cfg.functions.reciprocal_nr_iters
         if initial is None:
-            # Initialization to a decent estimate (found by qualitative inspection):
-            #                1/x = 3exp(1 - 2x) + 0.003
             result = 3 * (1 - 2 * self).exp() + 0.003
+        if initial == "large_range":
+            result = 3 * (1 - 2 * self).exp() + 0.003
+            result = result.where(self < 500, 0)
         else:
             result = initial
         for _ in range(nr_iters):

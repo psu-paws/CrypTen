@@ -716,6 +716,18 @@ class Graph(Container):
             module = self._modules[node_to_compute]
             output = module(input)
 
+            '''
+            try:
+                print(f"Input: {input[0].get_plain_text()}")
+            except:
+                pass
+
+            try:
+                print(f"Output: {output.get_plain_text()}")
+            except:
+                pass
+            '''
+
             # we may get one output:
             output_names = getattr(module, "_output_names", None)
             if output_names is None or len(output_names) == 1:
