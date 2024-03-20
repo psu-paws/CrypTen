@@ -1757,6 +1757,64 @@ class AutogradConv2D(AutogradFunction):
         return (grad_input, grad_kernel)
 
 
+@register_function("layernorm")
+class AutogradLayerNorm(AutogradFunction):
+    @staticmethod
+    def forward(
+        ctx,
+        x,
+        weight,
+        bias,
+        training=False,
+        eps=1e-05,
+    ):
+        """
+        Kiwan: Implementing layernorm
+        Note: inv_var can introduce precision errors due to sqrt and division.
+        """
+
+        # determine dimensions over which means and variances are computed:
+        #stats_dimensions = list(range(x.dim()))
+        #stats_dimensions.pop(1)
+
+        # shape for broadcasting statistics with input:
+        #broadcast_shape = [1] * x.dim()
+        #broadcast_shape[1] = x.shape[1]
+
+        # compute mean and variance, track batch statistics:
+        #print(type(x))
+        #print(x.get_plain_text()[0][0])
+        if training:
+            raise NotImplementedError()
+        else:
+            # TODO: Only implement for 1-dim for now
+            mean = x.mean(dim=-1, keepdim=True)
+            variance = x.var(-1, keepdim=True)
+
+            # compute inverse variance:
+            if torch.is_tensor(variance):
+                inv_var = 1.0 / torch.sqrt(variance + eps)
+            else:
+                inv_var = (variance + eps).inv_sqrt()
+
+        # reshape shape (C) to broadcastable (1, C, 1, +):
+        #mean = mean.reshape(broadcast_shape)
+        #inv_var = inv_var.reshape(broadcast_shape)
+        #weight = weight.reshape(broadcast_shape)
+        #bias = bias.reshape(broadcast_shape)
+
+        # compute z-scores:
+        x_norm = (x - mean) * inv_var
+
+        # save context and return:
+        ctx.save_multiple_for_backward((x_norm, weight, inv_var, training))
+        return x_norm * weight + bias
+
+    @staticmethod
+    def backward(ctx, grad_output):
+        raise NotImplementedError()
+
+
 @register_function("batchnorm")
 class AutogradBatchNorm(AutogradFunction):
     @staticmethod

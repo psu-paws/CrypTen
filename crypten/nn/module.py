@@ -2786,6 +2786,45 @@ class GlobalAveragePool(Module):
         return GlobalAveragePool()
 
 
+class LayerNormalization(Module):
+    """
+    Kiwan. Implement LayerNorm.
+    """
+
+    def __init__(self, eps=1e-05):
+        super().__init__()
+        self.eps = eps
+
+    def forward(self, x):
+        assert(len(x) == 3)
+        # Only implemented for inference
+        assert(not self.training)
+        input, weight, bias = x
+
+        output = input.layernorm(
+            weight,
+            bias,
+            eps=self.eps,
+        )
+        return output
+
+    def _compute_inv_var(self, running_var):
+        """Computes inverse variance."""
+        if isinstance(running_var, crypten.CrypTensor):
+            inv_var = running_var.add(self.eps).inv_sqrt()
+        else:
+            inv_var = running_var.add(self.eps).sqrt().reciprocal()
+        return inv_var
+
+    @staticmethod
+    def from_onnx(attributes=None):
+        if attributes is None:
+            attributes = {}
+        return LayerNormalization(
+            eps=attributes.get("epsilon", 1e-05),
+        )
+
+
 class BatchNormalization(Module):
     """
     Module that performs batch normalization following the ONNX specification.
