@@ -358,6 +358,31 @@ def tanh(self):
 
         # truncate outside [-maxval, maxval]
         return out.hardtanh()
+    elif method == "bolt":
+        a = -0.013232131886235352
+        b = 0.09948747962825866
+        c = -0.20093640347818847
+        d = -0.17616532856475706
+        e = 1.0542492677156243
+        f = -0.0024920889620412097
+
+        # This might not be the best optimization.
+        # Check out what the original BOLT paper does.
+        # Also, can we optimize this automatically?
+        sign = x.sign()
+
+        pos_x = x * x.sign()
+        x2 = pos_x * pos_x
+        x3 = x2 * pos_x
+        x4 = x3 * pos_x
+        x5 = x4 * pos_x
+
+        pol = a * x5 + b * x4 + c * x3 + d * x2 + e * pos_x + f
+
+        cond = pos_x >= 2.855
+        pos_y = pol.where(cond, 1.)
+
+        return pos_y * sign
     else:
         raise ValueError(f"Unrecognized method {method} for tanh")
 
