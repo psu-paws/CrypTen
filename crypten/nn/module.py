@@ -707,7 +707,7 @@ class Graph(Container):
             _mark_as_computed(input_name)
         node_to_compute = _find_computable_node()
         while node_to_compute is not None:
-            print(f"====================== {node_to_compute} =================================")
+            #print(f"====================== {node_to_compute} =================================")
 
             # compute output of module:
             input = [values[name] for name in self._graph[node_to_compute]]

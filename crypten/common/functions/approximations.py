@@ -195,6 +195,10 @@ def inv_sqrt(self):
     if initial is None:
         y = exp(self.div(2).add(0.2).neg()).mul(2.2).add(0.2)
         y -= self.div(1024)
+    elif initial == "large_range":
+        y = exp(self.div(2).add(0.2).neg()).mul(2.2).add(0.2)
+        y -= self.div(1024)
+        y = y.where(self < 100, 0.05)
     else:
         y = initial
 
@@ -369,9 +373,9 @@ def tanh(self):
         # This might not be the best optimization.
         # Check out what the original BOLT paper does.
         # Also, can we optimize this automatically?
-        sign = x.sign()
+        sign = self.sign()
 
-        pos_x = x * x.sign()
+        pos_x = self * self.sign()
         x2 = pos_x * pos_x
         x3 = x2 * pos_x
         x4 = x3 * pos_x
@@ -379,9 +383,7 @@ def tanh(self):
 
         pol = a * x5 + b * x4 + c * x3 + d * x2 + e * pos_x + f
 
-        cond = pos_x >= 2.855
-        pos_y = pol.where(cond, 1.)
-
+        pos_y = pol.where(pos_x < 2.855, 1.)
         return pos_y * sign
     else:
         raise ValueError(f"Unrecognized method {method} for tanh")
