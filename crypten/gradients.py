@@ -583,6 +583,27 @@ class AutogradTanh(AutogradFunction):
         (activations,) = ctx.saved_tensors
         return grad_output.mul(activations.square().neg().add(1.0))
 
+# Kiwan: TODO: Not considering backward
+@register_function("gt")
+class AutogradTanh(AutogradFunction):
+    @staticmethod
+    def forward(ctx, input, other):
+        return input.gt(other)
+
+    @staticmethod
+    def backward(ctx, grad_output):
+        raise NotImplementedError()
+
+# Kiwan: TODO: Not considering backward
+@register_function("lt")
+class AutogradTanh(AutogradFunction):
+    @staticmethod
+    def forward(ctx, input, other):
+        return input.lt(other)
+
+    @staticmethod
+    def backward(ctx, grad_output):
+        raise NotImplementedError()
 
 @register_function("hardtanh")
 class AutogradHardtanh(AutogradFunction):

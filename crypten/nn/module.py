@@ -707,6 +707,7 @@ class Graph(Container):
             _mark_as_computed(input_name)
         node_to_compute = _find_computable_node()
         while node_to_compute is not None:
+            print(f"====================== {node_to_compute} =================================")
 
             # compute output of module:
             input = [values[name] for name in self._graph[node_to_compute]]
@@ -1091,6 +1092,47 @@ class Div(Module):
     def from_onnx(attributes=None):
         return Div()
 
+class Abs(Module):
+    """
+    Kiwan
+    """
+
+    def forward(self, input):
+        return input.abs()
+
+    @staticmethod
+    def from_onnx(attributes=None):
+        return Abs()
+
+
+class Greater(Module):
+    """
+    Kiwan
+    """
+
+    def forward(self, input):
+        assert isinstance(input, (list, tuple)), "input must be list or tuple"
+        assert len(input) == 2, "input must contain two tensors"
+        return input[0] > input[1]
+
+    @staticmethod
+    def from_onnx(attributes=None):
+        return Greater()
+
+
+class Less(Module):
+    """
+    Kiwan
+    """
+
+    def forward(self, input):
+        assert isinstance(input, (list, tuple)), "input must be list or tuple"
+        assert len(input) == 2, "input must contain two tensors"
+        return input[0] < input[1]
+
+    @staticmethod
+    def from_onnx(attributes=None):
+        return Less()
 
 class Pow(Module):
     """
