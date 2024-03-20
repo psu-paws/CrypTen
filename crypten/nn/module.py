@@ -2417,6 +2417,16 @@ class ReLU6(Hardtanh):
         super(ReLU6, self).__init__(min_val=0, max_val=6, inplace=False)
 
 
+class Tanh(Module):
+    # Kiwan: Add Tanh. tanh is already implemented, so not sure why this is not there.
+    def forward(self, x):
+        return x.tanh()
+
+    @staticmethod
+    def from_onnx(attributes=None):
+        return Tanh()
+
+
 class Sigmoid(Module):
     r"""Applies the element-wise function:
 
