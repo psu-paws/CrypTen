@@ -9,6 +9,7 @@ import crypten.communicator as comm
 
 # dependencies:
 import torch
+from crypten.nn.module import time_per_op
 from crypten.common.functions import regular
 from crypten.common.rng import generate_random_ring_element
 from crypten.common.tensor_types import is_float_tensor, is_int_tensor, is_tensor
@@ -19,6 +20,8 @@ from crypten.cuda import CUDALongTensor
 from crypten.encoder import FixedPointEncoder
 
 from . import beaver, replicated  # noqa: F401
+
+import time
 
 
 SENTINEL = -1
@@ -346,6 +349,7 @@ class ArithmeticSharedTensor:
             "conv_transpose1d",
             "conv_transpose2d",
         ], f"Provided op `{op}` is not a supported arithmetic function"
+        start_t = time.time()
 
         additive_func = op in ["add", "sub"]
         public = isinstance(y, (int, float)) or is_tensor(y)
@@ -401,6 +405,11 @@ class ArithmeticSharedTensor:
                 else:
                     result.encoder = y.encoder
 
+        end_t = time.time()
+        op += "_arith"
+        if op not in time_per_op:
+            time_per_op[op] = 0.
+        time_per_op[op] += end_t - start_t
         return result
 
     def add(self, y):

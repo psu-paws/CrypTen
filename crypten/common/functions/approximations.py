@@ -11,6 +11,8 @@ import crypten
 import torch
 from crypten.config import cfg
 
+import time
+
 __all__ = [
     "exp",
     "log",
@@ -43,6 +45,7 @@ def exp(self):
     Set the number of iterations for the limit approximation with
     config.exp_iterations.
     """  # noqa: W605
+    #start_t = time.time()
     iters = cfg.functions.exp_iterations
     mode = cfg.functions.exp_method
 
@@ -55,13 +58,14 @@ def exp(self):
         return result
 
     result = 1 + self.div(2**iters)
-    if mode == "suppress_small":
+    if mode == "threshold":
         #result = result.where(self > -450, 0.)
         result = result.where(self > -11, 0.)
     for _ in range(iters):
         result = result.square()
     #print(f"Exp input {self.get_plain_text()}")
     #print(f"Exp output {result.get_plain_text()}")
+
     return result
 
 
@@ -170,7 +174,7 @@ def reciprocal(self, input_in_01=False):
         nr_iters = cfg.functions.reciprocal_nr_iters
         if initial is None:
             result = 3 * (1 - 2 * self).exp() + 0.003
-        if initial == "large_range":
+        if initial == "threshold":
             result = 3 * (1 - 2 * self).exp() + 0.003
             result = result.where(self < 500, 0)
         else:
@@ -209,7 +213,7 @@ def inv_sqrt(self):
     if initial is None:
         y = exp(self.div(2).add(0.2).neg()).mul(2.2).add(0.2)
         y -= self.div(1024)
-    elif initial == "large_range":
+    elif initial == "threshold":
         y = exp(self.div(2).add(0.2).neg()).mul(2.2).add(0.2)
         y -= self.div(1024)
         y = y.where(self < 100, 0.05)
@@ -438,18 +442,23 @@ def erf(tensor):
     Approximates the error function of the input tensor using a Taylor approximation.
     """
     iters = cfg.functions.erf_iterations
+    mode = cfg.functions.erf_method
 
     output = tensor.clone()
     for n in range(1, iters + 1):
         multiplier = ((-1) ** n) / (math.factorial(n) * (2 * n + 1))
         output = output.add(tensor.pos_pow(2 * n + 1).mul(multiplier))
-    return output.mul(2.0 / math.sqrt(math.pi))
-    # NOTE: This approximation is not unstable for large tensor values.
+    y = output.mul(2.0 / math.sqrt(math.pi))
+    if mode == "threshold":
+        y = y.where(tensor < 1.8, 1).where(tensor > -1.8, -1)
+
+    return y
 
 
 def softmax(self, dim, **kwargs):
     r"""Compute the softmax of a tensor's elements along a given dimension"""
     # 0-d case
+    mode = cfg.functions.softmax_method
     if self.dim() == 0:
         assert dim == 0, "Improper dim argument"
         return self.new(torch.ones_like((self.data)))
@@ -457,13 +466,23 @@ def softmax(self, dim, **kwargs):
     if self.size(dim) == 1:
         return self.new(torch.ones_like(self.data))
 
-    maximum_value = self.max(dim, keepdim=True)[0]
-    logits = self - maximum_value
+    #start_t = time.time()
+    if mode == "max":
+        maximum_value = self.max(dim, keepdim=True)[0]
+        logits = self - maximum_value
+    elif mode == "constant":
+        # This is an effort to avoid the super expensive max function.
+        # Finding the right threshold is challenging because exp makes everything below 11 to zero.
+        # TODO: Do we want to do one comparison to cut anything above 10?
+        thres = 10.
+        logits = self.where(self < thres, thres)
+        logits = logits - thres
     numerator = logits.exp()
     with cfg.temp_override({"functions.reciprocal_all_pos": True}):
         inv_denominator = numerator.sum(dim, keepdim=True).reciprocal()
-    return numerator * inv_denominator
 
+    y = numerator * inv_denominator
+    return y
 
 def log_softmax(self, dim, **kwargs):
     r"""Applies a softmax followed by a logarithm.

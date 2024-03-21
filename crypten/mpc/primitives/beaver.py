@@ -10,7 +10,9 @@ import crypten.communicator as comm
 import torch
 from crypten.common.util import count_wraps
 from crypten.config import cfg
+from crypten.nn.module import time_per_op
 
+import time
 
 class IgnoreEncodings:
     """Context Manager to ignore tensor encodings"""
@@ -44,6 +46,7 @@ def __beaver_protocol(op, x, y, *args, **kwargs):
         "conv_transpose1d",
         "conv_transpose2d",
     }
+    start_t = time.time()
     if x.device != y.device:
         raise ValueError(f"x lives on device {x.device} but y on device {y.device}")
 
@@ -83,6 +86,11 @@ def __beaver_protocol(op, x, y, *args, **kwargs):
     c._tensor += getattr(torch, op)(a._tensor, delta, *args, **kwargs)
     c += getattr(torch, op)(epsilon, delta, *args, **kwargs)
 
+    end_t = time.time()
+    op += "_beaver"
+    if op not in time_per_op:
+        time_per_op[op] = 0.
+    time_per_op[op] += end_t - start_t
     return c
 
 
@@ -118,12 +126,18 @@ def square(x):
     3. Open ([epsilon] = [x] - [r])
     4. Return z = [r2] + 2 * epsilon * [r] + epsilon ** 2
     """
+    start_t = time.time()
     provider = crypten.mpc.get_default_provider()
     r, r2 = provider.square(x.size(), device=x.device)
 
     with IgnoreEncodings([x, r]):
         epsilon = (x - r).reveal()
-    return r2 + 2 * r * epsilon + epsilon * epsilon
+    y = r2 + 2 * r * epsilon + epsilon * epsilon
+    end_t = time.time()
+    if "square" not in time_per_op:
+        time_per_op["square"] = 0.
+    time_per_op["square"] += end_t - start_t
+    return y
 
 
 def wraps(x):

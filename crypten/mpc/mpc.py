@@ -6,6 +6,7 @@
 # LICENSE file in the root directory of this source tree.
 
 import torch
+from crypten.nn.module import time_per_op
 from crypten import communicator as comm
 from crypten.common.tensor_types import is_tensor
 from crypten.common.util import torch_stack
@@ -18,6 +19,7 @@ from .primitives.binary import BinarySharedTensor
 from .primitives.converters import convert
 from .ptype import ptype as Ptype
 
+import time
 
 @CrypTensor.register_cryptensor("mpc")
 class MPCTensor(CrypTensor):
@@ -231,6 +233,7 @@ class MPCTensor(CrypTensor):
 
     # Comparators
     def _ltz(self):
+        start_t = time.time()
         """Returns 1 for elements that are < 0 and 0 otherwise"""
         shift = torch.iinfo(torch.long).bits - 1
         precision = 0 if self.encoder.scale == 1 else None
@@ -239,6 +242,10 @@ class MPCTensor(CrypTensor):
         result.share >>= shift
         result = result._to_ptype(Ptype.arithmetic, precision=precision, bits=1)
         result.encoder._scale = 1
+        end_t = time.time()
+        if "_ltz" not in time_per_op:
+            time_per_op["_ltz"] = 0.
+        time_per_op["_ltz"] += end_t - start_t
         return result
 
     def eq(self, y):

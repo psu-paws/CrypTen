@@ -18,6 +18,7 @@ from crypten.common.functions.pooling import _adaptive_pool2d_helper
 
 exec_cnt = 0
 time_per_node = {}
+time_per_op = {}
 
 class Module:
     """
