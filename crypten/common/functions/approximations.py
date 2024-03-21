@@ -59,8 +59,9 @@ def exp(self):
 
     result = 1 + self.div(2**iters)
     if mode == "threshold":
-        #result = result.where(self > -450, 0.)
-        result = result.where(self > -11, 0.)
+        result = result.where(self > -600, 0.)
+        # When mask is reduced to -500, below works better.
+        #result = result.where(self > -11, 0.)
     for _ in range(iters):
         result = result.square()
     #print(f"Exp input {self.get_plain_text()}")
