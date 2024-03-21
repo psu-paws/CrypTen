@@ -222,6 +222,6 @@ def B2A_single_bit(xB):
     provider = crypten.mpc.get_default_provider()
     rA, rB = provider.B2A_rng(xB.size(), device=xB.device)
 
-    z = (xB ^ rB).reveal()
+    z = (xB ^ rB).reveal(singlebit=True)
     rA = rA * (1 - 2 * z) + z
     return rA

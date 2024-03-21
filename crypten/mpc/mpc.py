@@ -233,15 +233,37 @@ class MPCTensor(CrypTensor):
 
     # Comparators
     def _ltz(self):
-        start_t = time.time()
-        """Returns 1 for elements that are < 0 and 0 otherwise"""
+        # Try throwing away the msb-th bit and above.
+        # TODO: Can we do this uniformly, or shall we control this per-layer?
+        mode = cfg.functions.ltz_mode
+        msb = cfg.functions.ltz_msb
+
         shift = torch.iinfo(torch.long).bits - 1
         precision = 0 if self.encoder.scale == 1 else None
+        """Returns 1 for elements that are < 0 and 0 otherwise"""
+        start_t = time.time()
+        if mode == "hummingbird":
+            tmp = self.share.clone()
 
-        result = self._to_ptype(Ptype.binary)
-        result.share >>= shift
-        result = result._to_ptype(Ptype.arithmetic, precision=precision, bits=1)
-        result.encoder._scale = 1
+            def truncate(x, n):
+                if n == 64:
+                    return x
+                else:
+                    return x.__and__((2 ** n) - 1)
+
+            self.share = truncate(self.share, msb)
+
+            result = self._to_ptype(Ptype.binary)
+            result.share >>= (msb - 1)
+            result.share = result.share.__and__(1)
+            result = result._to_ptype(Ptype.arithmetic, precision=precision, bits=1)
+            result.encoder._scale = 1
+            self.share = tmp
+        else:
+            result = self._to_ptype(Ptype.binary)
+            result.share >>= shift
+            result = result._to_ptype(Ptype.arithmetic, precision=precision, bits=1)
+            result.encoder._scale = 1
         end_t = time.time()
         if "_ltz" not in time_per_op:
             time_per_op["_ltz"] = 0.

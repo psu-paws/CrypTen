@@ -17,7 +17,8 @@ from crypten.cuda import CUDALongTensor
 from crypten.encoder import FixedPointEncoder
 
 from . import beaver, circuit
-
+from ..hummingbird import bitpack, bitunpack
+from crypten.config import cfg
 
 SENTINEL = -1
 
@@ -378,18 +379,42 @@ class BinarySharedTensor:
         ), f"Invalid input type into reveal {type(tensor_or_list)}"
         shares = [tensor.share for tensor in tensor_or_list]
         op = torch.distributed.ReduceOp.BXOR
-        if dst is None:
-            return comm.get().all_reduce(shares, op=op, batched=True)
-        else:
-            return comm.get().reduce(shares, dst, op=op, batched=True)
 
-    def reveal(self, dst=None):
+        mode = cfg.functions.ltz_mode
+        msb = cfg.functions.ltz_msb
+        if mode == "hummingbird":
+            shares = [bitpack(s, msb) for s in shares]
+            shape = shares[0][1]
+            shares = [s[0] for s in shares]
+
+        if dst is None:
+            res = comm.get().all_reduce(shares, op=op, batched=True)
+        else:
+            res = comm.get().reduce(shares, dst, op=op, batched=True)
+
+        if mode == "hummingbird":
+            res = [bitunpack(t, msb, shape) for t in res]
+
+        return res
+
+    def reveal(self, dst=None, singlebit=False):
         """Get plaintext without any downscaling"""
         op = torch.distributed.ReduceOp.BXOR
-        if dst is None:
-            return comm.get().all_reduce(self.share, op=op)
+
+        if singlebit:
+            share, shape = bitpack(self.share, 1)
         else:
-            return comm.get().reduce(self.share, dst, op=op)
+            share = self.share
+
+        if dst is None:
+            res = comm.get().all_reduce(share, op=op)
+        else:
+            res = comm.get().reduce(share, dst, op=op)
+
+        if singlebit:
+            return bitunpack(res, 1, shape)
+        else:
+            return res
 
     def get_plain_text(self, dst=None):
         """Decrypts the tensor."""

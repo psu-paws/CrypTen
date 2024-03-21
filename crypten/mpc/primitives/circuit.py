@@ -9,6 +9,7 @@ import functools
 import math
 
 import torch
+from crypten.config import cfg
 
 # Cache masks and constants to skip computation during each call
 __BITS = torch.iinfo(torch.long).bits
@@ -62,14 +63,22 @@ def __SPK_circuit(S, P):
     """
     from .binary import BinarySharedTensor
 
+    mode = cfg.functions.ltz_mode
+    msb = cfg.functions.ltz_msb
+
     # Vectorize private AND calls to reduce rounds:
     SP = BinarySharedTensor.stack([S, P])
 
     __MASKS, __OUT_MASKS, __MULTIPLIERS = __SPK_circuit_constants(SP.device)
 
+    if mode == "hummingbird":
+        numbits = math.ceil(math.log2(msb))
+    else:
+        numbits = __LOG_BITS
+
     # fmt: off
     # Tree reduction circuit
-    for i in range(__LOG_BITS):
+    for i in range(numbits):
         in_mask = __MASKS[i]                # Start of arrows
         out_mask = __OUT_MASKS[i]           # End of arrows
         not_out_mask = out_mask ^ -1        # Not (end of arrows)

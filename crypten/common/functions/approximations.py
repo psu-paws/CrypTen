@@ -58,12 +58,21 @@ def exp(self):
         return result
 
     result = 1 + self.div(2**iters)
+    #end_t = time.time()
+    #print("Div time", end_t - start_t)
+    #start_t = time.time()
     if mode == "threshold":
         result = result.where(self > -600, 0.)
         # When mask is reduced to -500, below works better.
         #result = result.where(self > -11, 0.)
+    end_t = time.time()
+    #print("Comp time", end_t - start_t)
+    start_t = time.time()
     for _ in range(iters):
         result = result.square()
+    end_t = time.time()
+    #print("Square time", end_t - start_t)
+    #exit(0)
     #print(f"Exp input {self.get_plain_text()}")
     #print(f"Exp output {result.get_plain_text()}")
 
@@ -473,8 +482,7 @@ def softmax(self, dim, **kwargs):
         logits = self - maximum_value
     elif mode == "constant":
         # This is an effort to avoid the super expensive max function.
-        # Finding the right threshold is challenging because exp makes everything below 11 to zero.
-        # TODO: Do we want to do one comparison to cut anything above 10?
+        # But this doesn't work well..
         thres = 10.
         logits = self.where(self < thres, thres)
         logits = logits - thres

@@ -718,8 +718,7 @@ class Graph(Container):
             rank = os.environ.get("RANK")
             if node_to_compute not in time_per_node:
                 time_per_node[node_to_compute] = 0.
-            #if rank == 0:
-            #    print(f"====================== {node_to_compute} =================================")
+            #print(f"====================== {node_to_compute} =================================")
 
             # compute output of module:
             input = [values[name] for name in self._graph[node_to_compute]]
@@ -730,6 +729,9 @@ class Graph(Container):
             output = module(input)
             end_t = time.time()
             time_per_node[node_to_compute] += end_t - start_t
+            #if "Abs" in node_to_compute:
+            #    print(end_t - start_t)
+            #    exit(0)
 
             '''
             try:
@@ -1130,7 +1132,7 @@ class Abs(Module):
     @staticmethod
     def from_onnx(attributes=None):
         return Abs()
-
+1
 
 class Greater(Module):
     """
