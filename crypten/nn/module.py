@@ -8,12 +8,16 @@
 import logging
 import warnings
 from collections import OrderedDict
+import os
+import time
 
 import crypten
 import torch
 import torch.onnx.symbolic_helper as sym_help
 from crypten.common.functions.pooling import _adaptive_pool2d_helper
 
+exec_cnt = 0
+time_per_node = {}
 
 class Module:
     """
@@ -656,6 +660,9 @@ class Graph(Container):
             module._output_names = output_names
 
     def forward(self, *args):
+        global exec_cnt
+        global time_per_node
+        exec_cnt += 1
         assert len(args) == len(
             self.input_names
         ), f"Expected {len(self.input_names)} inputs but received {len(args)}."
@@ -707,14 +714,21 @@ class Graph(Container):
             _mark_as_computed(input_name)
         node_to_compute = _find_computable_node()
         while node_to_compute is not None:
-            #print(f"====================== {node_to_compute} =================================")
+            rank = os.environ.get("RANK")
+            if node_to_compute not in time_per_node:
+                time_per_node[node_to_compute] = 0.
+            #if rank == 0:
+            #    print(f"====================== {node_to_compute} =================================")
 
             # compute output of module:
             input = [values[name] for name in self._graph[node_to_compute]]
             if len(input) == 1:
                 input = input[0]  # unpack iterable if possible
             module = self._modules[node_to_compute]
+            start_t = time.time()
             output = module(input)
+            end_t = time.time()
+            time_per_node[node_to_compute] += end_t - start_t
 
             '''
             try:
