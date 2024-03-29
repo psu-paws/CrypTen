@@ -1238,8 +1238,7 @@ class _Reduce(Module):
         self.reduction_fn = reduction_fn
 
     def forward(self, input):
-        print(input)
-        return getattr(input[0], self.reduction_fn)(input[1] keepdim=self.keepdim)
+        return getattr(input[0], self.reduction_fn)(input[1], keepdim=self.keepdim)
 
 
 class Mean(_Reduce):
