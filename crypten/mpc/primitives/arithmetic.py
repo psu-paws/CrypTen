@@ -355,6 +355,17 @@ class ArithmeticSharedTensor:
         public = isinstance(y, (int, float)) or is_tensor(y)
         private = isinstance(y, ArithmeticSharedTensor)
 
+        # Kiwan: TODO: Here is a potential bug. When self._scale == 1 and y is public, crypten becomes incorrect.
+        # This happens when crypten.where() is called:
+        # condition * y is done, and condition is boolean (_scale=1).
+        # In the original CrypTen code, this makes y's scale to become 1, hence if y was a float, it becomes an integer.
+        # Not sure how to fix this correctly, so patching crypten.where() for now (this bug can manifest in the future)
+        '''
+        if self.encoder.scale == 1 and public:
+            self.encoder._scale = int(2**cfg.encoder.precision_bits)
+            self.share *= int(2**cfg.encoder.precision_bits)
+        '''
+
         if inplace:
             result = self
             if additive_func or (op == "mul" and public):

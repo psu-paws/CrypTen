@@ -36,6 +36,10 @@ functions:
 
   # error function configuration:
   erf_iterations: 8
+
+  # added by Kiwan
+  ltz_mode: "default"
+  ltz_msb: 64
 mpc:
   active_security: False
   provider: "TFP"

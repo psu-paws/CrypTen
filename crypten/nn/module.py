@@ -769,11 +769,12 @@ class Graph(Container):
             '''
             try:
                 print(f"Input: {input[0].get_plain_text()}")
+                print(f"Input dtype: {[x.get_plain_text().dtype for x in input[:2]]}")
             except:
                 pass
 
             try:
-                print(f"Output: {output.get_plain_text()}")
+                print(f"Output: {output.get_plain_text(), output.get_plain_text().dtype}")
             except:
                 pass
             '''
@@ -1165,7 +1166,20 @@ class Abs(Module):
     @staticmethod
     def from_onnx(attributes=None):
         return Abs()
-1
+
+
+class Abs(Module):
+    """
+    Kiwan
+    """
+
+    def forward(self, input):
+        return input.abs()
+
+    @staticmethod
+    def from_onnx(attributes=None):
+        return Abs()
+
 
 class Greater(Module):
     """
@@ -2116,6 +2130,7 @@ class Conv(Module):
 
         # perform the convolution:
         x = func(*args, **kwargs)
+        print(x.get_plain_text())
 
         # add the bias term if it is specified, and wasn;t already added:
         if not torch.is_tensor(x) and bias is not None:

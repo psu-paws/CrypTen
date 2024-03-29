@@ -180,7 +180,12 @@ def reciprocal(self, input_in_01=False):
         with cfg.temp_override(pos_override):
             return sgn * reciprocal(pos)
 
-    if method == "NR":
+    if method == "exact":
+        plain = self.get_plain_text()
+        plain = 1 / plain
+        result = crypten.cryptensor(plain)
+        return result
+    elif method == "NR":
         nr_iters = cfg.functions.reciprocal_nr_iters
         if initial is None:
             result = 3 * (1 - 2 * self).exp() + 0.003
@@ -218,6 +223,13 @@ def inv_sqrt(self):
     """
     initial = cfg.functions.sqrt_nr_initial
     iters = cfg.functions.sqrt_nr_iters
+    method = cfg.functions.sqrt_method
+
+    if method == "exact":
+        plain = self.get_plain_text()
+        plain = 1 / plain.sqrt()
+        result = crypten.cryptensor(plain)
+        return result
 
     # Initialize using decent approximation
     if initial is None:
@@ -326,7 +338,12 @@ def sigmoid(self):
     """  # noqa: W605
     method = cfg.functions.sigmoid_tanh_method
 
-    if method == "chebyshev":
+    if method == "exact":
+        plain = self.get_plain_text()
+        plain = torch.nn.functional.sigmoid(plain)
+        result = crypten.cryptensor(plain)
+        return result
+    elif method == "chebyshev":
         tanh_approx = tanh(self.div(2))
         return tanh_approx.div(2) + 0.5
     elif method == "reciprocal":
@@ -377,7 +394,12 @@ def tanh(self):
     """
     method = cfg.functions.sigmoid_tanh_method
 
-    if method == "reciprocal":
+    if method == "exact":
+        plain = self.get_plain_text()
+        plain = torch.nn.functional.tanh(plain)
+        result = crypten.cryptensor(plain)
+        return result
+    elif method == "reciprocal":
         return self.mul(2).sigmoid().mul(2).sub(1)
     elif method == "chebyshev":
         terms = cfg.functions.sigmoid_tanh_terms
@@ -477,7 +499,12 @@ def softmax(self, dim, **kwargs):
         return self.new(torch.ones_like(self.data))
 
     #start_t = time.time()
-    if mode == "max":
+    if mode == "exact":
+        plain = self.get_plain_text()
+        plain = torch.nn.functional.softmax(plain)
+        result = crypten.cryptensor(plain)
+        return result
+    elif mode == "max":
         maximum_value = self.max(dim, keepdim=True)[0]
         logits = self - maximum_value
     elif mode == "constant":
