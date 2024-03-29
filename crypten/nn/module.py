@@ -1239,7 +1239,7 @@ class _Reduce(Module):
         self.reduction_fn = reduction_fn
 
     def forward(self, input):
-        if self.dim = None:
+        if self.dim == None:
             assert(isinstance(input, list) and len(input) == 2)
             dim = int(input[1].item())
             input = input[0]
