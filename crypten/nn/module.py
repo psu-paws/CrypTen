@@ -718,7 +718,7 @@ class Graph(Container):
             rank = os.environ.get("RANK")
             if node_to_compute not in time_per_node:
                 time_per_node[node_to_compute] = 0.
-            #print(f"====================== {node_to_compute} =================================")
+            print(f"====================== {node_to_compute} =================================")
 
             # compute output of module:
             input = [values[name] for name in self._graph[node_to_compute]]
@@ -726,6 +726,12 @@ class Graph(Container):
                 input = input[0]  # unpack iterable if possible
             module = self._modules[node_to_compute]
             start_t = time.time()
+            '''
+            try:
+                print(f"Input shape: {[x.get_plain_text().shape for x in input]}")
+            except:
+                pass
+            '''
             output = module(input)
             end_t = time.time()
             time_per_node[node_to_compute] += end_t - start_t
@@ -1226,14 +1232,14 @@ class _Reduce(Module):
     and ONNX ReduceSum (defined here as Sum).
     """
 
-    def __init__(self, dim, keepdim=False, reduction_fn="mean"):
+    def __init__(self, keepdim=False, reduction_fn="mean"):
         super().__init__()
-        self.dim = dim
         self.keepdim = keepdim
         self.reduction_fn = reduction_fn
 
     def forward(self, input):
-        return getattr(input, self.reduction_fn)(self.dim, keepdim=self.keepdim)
+        print(input)
+        return getattr(input[0], self.reduction_fn)(input[1] keepdim=self.keepdim)
 
 
 class Mean(_Reduce):
@@ -1245,15 +1251,15 @@ class Mean(_Reduce):
     (or `len(dim)`) fewer dimension(s).
     """
 
-    def __init__(self, dim, keepdim=False):
-        super().__init__(dim, keepdim, "mean")
+    def __init__(self, keepdim=False):
+        super().__init__(keepdim, "mean")
 
     @staticmethod
     def from_onnx(attributes=None):
         if attributes is None:
             attributes = {}
         keepdim = _identify_bool_attributes_with_defaults(attributes, "keepdims", 1)
-        return Mean(attributes["axes"], keepdim)
+        return Mean(keepdim)
 
 
 class Sum(_Reduce):
@@ -1265,15 +1271,15 @@ class Sum(_Reduce):
     (or `len(dim)`) fewer dimension(s).
     """
 
-    def __init__(self, dim, keepdim=False):
-        super().__init__(dim, keepdim, "sum")
+    def __init__(self, keepdim=False):
+        super().__init__(keepdim, "sum")
 
     @staticmethod
     def from_onnx(attributes=None):
         if attributes is None:
             attributes = {}
         keepdim = _identify_bool_attributes_with_defaults(attributes, "keepdims", 1)
-        return Sum(attributes["axes"], keepdim)
+        return Sum(keepdim)
 
 
 class Transpose(Module):
