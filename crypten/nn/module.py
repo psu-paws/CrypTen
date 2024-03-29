@@ -19,6 +19,7 @@ from crypten.common.functions.pooling import _adaptive_pool2d_helper
 exec_cnt = 0
 time_per_node = {}
 time_per_op = {}
+tmp_t = 0
 
 class Module:
     """
@@ -641,6 +642,7 @@ class Graph(Container):
             self._modules = modules
         if graph is not None:
             self._graph = graph
+        self.remove_keys = {}
 
     def add_module(self, name, module, input_names=None, output_names=None):
         """
@@ -690,7 +692,10 @@ class Graph(Container):
                     return key
             return None
 
-        def _clear_unused_values():
+        def _clear_unused_values(cur_node):
+            # Kiwan: This is super inefficient, and gets slower as the network gets larger
+            # because we iterate all the possible values in the graph.
+            '''
             """Clear values that are no longer needed (to save memory)."""
             remove_keys = []
             for remove_key in values.keys():
@@ -709,16 +714,37 @@ class Graph(Container):
                 del values[remove_key]
             # NOTE: We maintain inputs_available[remove_key] as True to
             # prevent re-computation of the node.
+            '''
+            if cur_node not in self.remove_keys:
+                # Only calculate when each tensor can be released in the first iter (slow)
+                # and reuse the saved mapping over the next iter.
+                # The first iter will be quite slow, but it will become faster from the second iter.
+                self.remove_keys[cur_node] = []
+                for remove_key in values.keys():
+                    can_be_removed = True
+
+                    # we cannot remove a value if it is still needed:
+                    for key, value_list in self._graph.items():
+                        if not computed[key] and remove_key in value_list:
+                            can_be_removed = False
+                            break
+                    if can_be_removed:
+                        self.remove_keys[cur_node].append(remove_key)
+
+            # remove all values we no longer need:
+            for remove_key in self.remove_keys[cur_node]:
+                del values[remove_key]
 
         # perform forward pass:
         for input_name in self.input_names:
             _mark_as_computed(input_name)
         node_to_compute = _find_computable_node()
+        global tmp_t
         while node_to_compute is not None:
             rank = os.environ.get("RANK")
             if node_to_compute not in time_per_node:
                 time_per_node[node_to_compute] = 0.
-            print(f"====================== {node_to_compute} =================================")
+            #print(f"====================== {node_to_compute} =================================")
 
             # compute output of module:
             input = [values[name] for name in self._graph[node_to_compute]]
@@ -734,6 +760,7 @@ class Graph(Container):
             '''
             output = module(input)
             end_t = time.time()
+            tmp_t = end_t
             time_per_node[node_to_compute] += end_t - start_t
             #if "Abs" in node_to_compute:
             #    print(end_t - start_t)
@@ -780,7 +807,7 @@ class Graph(Container):
             node_to_compute = _find_computable_node()
 
             # clean up values we no longer need:
-            _clear_unused_values()
+            _clear_unused_values(node_to_compute)
 
         # this should never happen:
         raise ValueError("nn.Graph.forward() failed. Is graph unconnected?")
