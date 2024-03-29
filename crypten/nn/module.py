@@ -1232,13 +1232,21 @@ class _Reduce(Module):
     and ONNX ReduceSum (defined here as Sum).
     """
 
-    def __init__(self, keepdim=False, reduction_fn="mean"):
+    def __init__(self, dim, keepdim=False, reduction_fn="mean"):
         super().__init__()
+        self.dim = dim
         self.keepdim = keepdim
         self.reduction_fn = reduction_fn
 
     def forward(self, input):
-        return getattr(input[0], self.reduction_fn)(input[1], keepdim=self.keepdim)
+        if self.dim = None:
+            assert(isinstance(input, list) and len(input) == 2)
+            dim = int(input[1].item())
+            input = input[0]
+        else:
+            dim = self.dim
+
+        return getattr(input, self.reduction_fn)(dim, keepdim=self.keepdim)
 
 
 class Mean(_Reduce):
@@ -1250,15 +1258,17 @@ class Mean(_Reduce):
     (or `len(dim)`) fewer dimension(s).
     """
 
-    def __init__(self, keepdim=False):
-        super().__init__(keepdim, "mean")
+    def __init__(self, dim, keepdim=False):
+        super().__init__(dim, keepdim, "mean")
 
     @staticmethod
     def from_onnx(attributes=None):
         if attributes is None:
             attributes = {}
         keepdim = _identify_bool_attributes_with_defaults(attributes, "keepdims", 1)
-        return Mean(keepdim)
+        if "axes" not in attributes:
+            attributes["axes"] = None
+        return Mean(attributes["axes"], keepdim)
 
 
 class Sum(_Reduce):
@@ -1270,15 +1280,17 @@ class Sum(_Reduce):
     (or `len(dim)`) fewer dimension(s).
     """
 
-    def __init__(self, keepdim=False):
-        super().__init__(keepdim, "sum")
+    def __init__(self, dim, keepdim=False):
+        super().__init__(dim, keepdim, "sum")
 
     @staticmethod
     def from_onnx(attributes=None):
         if attributes is None:
             attributes = {}
         keepdim = _identify_bool_attributes_with_defaults(attributes, "keepdims", 1)
-        return Sum(keepdim)
+        if "axes" not in attributes:
+            attributes["axes"] = None
+        return Sum(attributes["axes"], keepdim)
 
 
 class Transpose(Module):
