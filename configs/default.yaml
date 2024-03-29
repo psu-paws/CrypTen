@@ -7,6 +7,7 @@ encoder:
   precision_bits: 16
 functions:
   max_method: "log_reduction"
+  sqrt_method: "nr"
 
   # exponential function
   exp_iterations: 8
