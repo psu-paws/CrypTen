@@ -15,6 +15,7 @@ import crypten
 import torch
 import torch.onnx.symbolic_helper as sym_help
 from crypten.common.functions.pooling import _adaptive_pool2d_helper
+import crypten.communicator as comm
 
 exec_cnt = 0
 time_per_node = {}
@@ -741,7 +742,7 @@ class Graph(Container):
         node_to_compute = _find_computable_node()
         global tmp_t
         while node_to_compute is not None:
-            rank = os.environ.get("RANK")
+            rank = int(os.environ.get("RANK"))
             if node_to_compute not in time_per_node:
                 time_per_node[node_to_compute] = 0.
             #print(f"====================== {node_to_compute} =================================")
@@ -752,16 +753,52 @@ class Graph(Container):
                 input = input[0]  # unpack iterable if possible
             module = self._modules[node_to_compute]
             start_t = time.time()
+            communicator = comm.get()
             '''
-            try:
-                print(f"Input shape: {[x.get_plain_text().shape for x in input]}")
-            except:
-                pass
+            if "Greater" in node_to_compute:
+                print(f"====================== {node_to_compute} =================================")
+                try:
+                    print(f"Input shape: {input[0].get_plain_text().shape}")
+                except:
+                    pass
+            '''
+            '''
+            if "Greater" in node_to_compute or "MatMul" in node_to_compute:
+                print(f"====================== {node_to_compute} =================================")
+                communicator.reset_communication_stats()
             '''
             output = module(input)
             end_t = time.time()
             tmp_t = end_t
             time_per_node[node_to_compute] += end_t - start_t
+
+            '''
+            if "Greater" in node_to_compute:
+                try:
+                    print(f"Input shape: {input[0].get_plain_text().shape}")
+                except:
+                    pass
+                print(node_to_compute)
+                print(end_t - start_t)
+                print(communicator.get_communication_stats())
+            '''
+            '''
+            if "MatMul" in node_to_compute:
+                print(f"====================== {node_to_compute} =================================")
+                try:
+                    print(f"Input shape: {[x.get_plain_text().shape for x in input]}")
+                    print(f"Output: {output.get_plain_text().shape}")
+                    print(comm.get().get_communication_stats())
+                except:
+                    pass
+            '''
+            '''
+            if "Greater" in node_to_compute or "MatMul" in node_to_compute:
+                print(end_t - start_t)
+                print(comm.get().get_communication_stats())
+                if "MatMul" in node_to_compute:
+                    exit(0)
+            '''
             #if "Abs" in node_to_compute:
             #    print(end_t - start_t)
             #    exit(0)
@@ -808,6 +845,9 @@ class Graph(Container):
             node_to_compute = _find_computable_node()
 
             # clean up values we no longer need:
+            # Kiwan: TODO: Commenting this out can run small batch experiments faster.
+            # To run larger batch, uncomment below (if uncommented, do not consider the first iter
+            # during performance measurement).
             _clear_unused_values(node_to_compute)
 
         # this should never happen:
@@ -2130,7 +2170,6 @@ class Conv(Module):
 
         # perform the convolution:
         x = func(*args, **kwargs)
-        print(x.get_plain_text())
 
         # add the bias term if it is specified, and wasn;t already added:
         if not torch.is_tensor(x) and bias is not None:

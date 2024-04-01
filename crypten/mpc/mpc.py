@@ -268,6 +268,7 @@ class MPCTensor(CrypTensor):
         if "_ltz" not in time_per_op:
             time_per_op["_ltz"] = 0.
         time_per_op["_ltz"] += end_t - start_t
+
         return result
 
     def eq(self, y):
