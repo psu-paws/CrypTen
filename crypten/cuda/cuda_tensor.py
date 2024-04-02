@@ -15,7 +15,9 @@ import math
 import operator
 
 import torch
+import gemm64
 
+from crypten.config import cfg
 
 def implements(torch_function):
     """Register a torch function override for CUDALongTensor"""
@@ -254,46 +256,67 @@ class CUDALongTensor(object):
     @staticmethod
     @implements(torch.matmul)
     def matmul(x, y, *args, **kwargs):
-        # Kiwan: nb = 3 causes overflow. Fix to nb = 4
-        # Related: https://github.com/facebookresearch/CrypTen/issues/307
-
-        # Use 4 blocks if each dot product is 256 elements or larger to prevent overflow in the sum
-        #nb = 3 if x.size(-1) < 256 else 4
-        nb = 4
-
-        # Prepend 1 to the dimension of x or y if it is 1-dimensional
-        remove_x, remove_y = False, False
-        if x.dim() == 1:
-            x = x.view(1, x.shape[0])
-            remove_x = True
-        if y.dim() == 1:
-            y = y.view(y.shape[0], 1)
-            remove_y = True
-
-        x_encoded = CUDALongTensor.__encode_as_fp64(x, nb).data
-        y_encoded = CUDALongTensor.__encode_as_fp64(y, nb).data
-
-        # Span x and y for cross multiplication
-        repeat_idx = [1] * (x_encoded.dim() - 1)
-        x_enc_span = x_encoded.repeat(nb, *repeat_idx)
-        y_enc_span = torch.repeat_interleave(y_encoded, repeats=nb, dim=0)
-
-        # Broadcasting
-        for _ in range(abs(x_enc_span.ndim - y_enc_span.ndim)):
-            if x_enc_span.ndim > y_enc_span.ndim:
-                y_enc_span.unsqueeze_(1)
+        if cfg.functions.matmul == "cutlass" and len(y.shape) == 2:
+            x_shape = x.shape
+            y_shape = y.shape
+            #print(x_shape, y_shape)
+            assert(len(x_shape) in [2, 3])
+            assert(len(y_shape) == 2)
+            if len(x_shape) == 2:
+                M = x_shape[0]
+                K = x_shape[1]
+                N = y_shape[1]
+                out = torch.zeros([M, N], dtype=torch.long).to(x.device)
+                gemm64.cutlassGemm64(x.tensor(), y.tensor(), out, M, K, N)
             else:
-                x_enc_span.unsqueeze_(1)
+                BS = x_shape[0]
+                M = x_shape[1]
+                K = x_shape[2]
+                N = y_shape[1]
+                out = torch.zeros([BS * M, N], dtype=torch.long).to(x.device)
+                gemm64.cutlassGemm64(x.tensor(), y.tensor(), out, BS * M, K, N)
+                out = out.reshape(BS, M, N)
+            return CUDALongTensor(out)
+        else:
+            # Kiwan: nb = 3 causes overflow. Fix to nb = 4
+            # Related: https://github.com/facebookresearch/CrypTen/issues/307
 
-        z_encoded = torch.matmul(x_enc_span, y_enc_span, *args, **kwargs)
+            # Use 4 blocks if each dot product is 256 elements or larger to prevent overflow in the sum
+            #nb = 3 if x.size(-1) < 256 else 4
+            nb = 4
 
-        if remove_x:
-            z_encoded.squeeze_(-2)
-        if remove_y:
-            z_encoded.squeeze_(-1)
+            # Prepend 1 to the dimension of x or y if it is 1-dimensional
+            remove_x, remove_y = False, False
+            if x.dim() == 1:
+                x = x.view(1, x.shape[0])
+                remove_x = True
+            if y.dim() == 1:
+                y = y.view(y.shape[0], 1)
+                remove_y = True
 
-        return CUDALongTensor.__decode_as_int64(z_encoded, nb)
+            x_encoded = CUDALongTensor.__encode_as_fp64(x, nb).data
+            y_encoded = CUDALongTensor.__encode_as_fp64(y, nb).data
 
+            # Span x and y for cross multiplication
+            repeat_idx = [1] * (x_encoded.dim() - 1)
+            x_enc_span = x_encoded.repeat(nb, *repeat_idx)
+            y_enc_span = torch.repeat_interleave(y_encoded, repeats=nb, dim=0)
+
+            # Broadcasting
+            for _ in range(abs(x_enc_span.ndim - y_enc_span.ndim)):
+                if x_enc_span.ndim > y_enc_span.ndim:
+                    y_enc_span.unsqueeze_(1)
+                else:
+                    x_enc_span.unsqueeze_(1)
+
+            z_encoded = torch.matmul(x_enc_span, y_enc_span, *args, **kwargs)
+
+            if remove_x:
+                z_encoded.squeeze_(-2)
+            if remove_y:
+                z_encoded.squeeze_(-1)
+
+            return CUDALongTensor.__decode_as_int64(z_encoded, nb)
     @staticmethod
     @implements(torch.conv1d)
     def conv1d(input, weight, *args, **kwargs):

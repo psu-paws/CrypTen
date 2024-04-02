@@ -752,23 +752,25 @@ class Graph(Container):
             if len(input) == 1:
                 input = input[0]  # unpack iterable if possible
             module = self._modules[node_to_compute]
-            start_t = time.time()
             communicator = comm.get()
-            '''
-            if "Greater" in node_to_compute:
-                print(f"====================== {node_to_compute} =================================")
-                try:
-                    print(f"Input shape: {input[0].get_plain_text().shape}")
-                except:
-                    pass
-            '''
             '''
             if "Greater" in node_to_compute or "MatMul" in node_to_compute:
                 print(f"====================== {node_to_compute} =================================")
                 communicator.reset_communication_stats()
             '''
+            #communicator.reset_communication_stats()
+            start_t = time.time()
             output = module(input)
             end_t = time.time()
+            '''
+            if "Greater" in node_to_compute:
+                print("Time ", end_t - start_t)
+                print(communicator.get_communication_stats())
+            if "MatMul" in node_to_compute:
+                print("Time ", end_t - start_t)
+                print(communicator.get_communication_stats())
+                exit(0)
+            '''
             tmp_t = end_t
             time_per_node[node_to_compute] += end_t - start_t
 
