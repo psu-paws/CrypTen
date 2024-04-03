@@ -9,6 +9,9 @@ functions:
   max_method: "log_reduction"
   sqrt_method: "nr"
 
+  # softmax related
+  softmax_lower_thres: False
+
   # exponential function
   exp_iterations: 8
 
