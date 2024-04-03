@@ -187,7 +187,7 @@ def reciprocal(self, input_in_01=False):
         return result
     elif method == "NR":
         nr_iters = cfg.functions.reciprocal_nr_iters
-        if initial is None:
+        if initial == "default":
             result = 3 * (1 - 2 * self).exp() + 0.003
         if initial == "threshold":
             result = 3 * (1 - 2 * self).exp() + 0.003
@@ -517,6 +517,8 @@ def softmax(self, dim, **kwargs):
         plain = torch.nn.functional.softmax(plain, dim=-1)
         result = crypten.cryptensor(plain)
         return result
+    elif mode == "no_max":
+        logits = self
     elif mode == "max":
         maximum_value = self.max(dim, keepdim=True)[0]
         logits = self - maximum_value
@@ -535,6 +537,27 @@ def softmax(self, dim, **kwargs):
         inv_denominator = numerator.sum(dim, keepdim=True).reciprocal()
 
     y = numerator * inv_denominator
+
+    # For debugging:
+    '''
+    plain = self.get_plain_text()
+    print("Softmax input:", plain[0][0][2])
+    out1 = torch.nn.functional.softmax(plain, dim=-1)
+    print("Softmax output (golden):", out1[0][0][2])
+    out2 = y.get_plain_text()
+    print("Softmax output (ours):", out2[0][0][2])
+    print(out2.min(), out2.max())
+    (n0, n1, n2, n3) = (out2 == out2.min()).nonzero()[0]
+    print("In", plain[n0, n1, n2, :])
+    print("Out", out1[n0, n1, n2, :])
+    print("Out", out2[n0, n1, n2, :])
+    print("In + exp", plain[n0, n1, n2, :].exp())
+    print("In + exp + sum", plain[n0, n1, n2, :].exp().sum())
+    t = plain[n0, n1, n2, :].exp().sum()
+    t = crypten.cryptensor(t)
+    print(t.get_plain_text(), t.reciprocal().get_plain_text())
+    exit(0)
+    '''
     return y
 
 def log_softmax(self, dim, **kwargs):

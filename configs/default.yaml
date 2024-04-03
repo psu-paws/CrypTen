@@ -20,7 +20,7 @@ functions:
   reciprocal_nr_iters: 10
   reciprocal_log_iters: 1
   reciprocal_all_pos: False
-  reciprocal_initial: null
+  reciprocal_initial: "default"
 
   # sqrt configuration
   sqrt_nr_iters: 3
