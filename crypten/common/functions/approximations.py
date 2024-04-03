@@ -507,6 +507,8 @@ def softmax(self, dim, **kwargs):
     elif mode == "max":
         maximum_value = self.max(dim, keepdim=True)[0]
         logits = self - maximum_value
+    elif mode == "div":
+        logits = self / 100.
     elif mode == "constant":
         # This is an effort to avoid the super expensive max function.
         # But this doesn't work well..

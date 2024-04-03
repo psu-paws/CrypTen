@@ -775,6 +775,15 @@ class Graph(Container):
             time_per_node[node_to_compute] += end_t - start_t
 
             '''
+            if "Softmax" in node_to_compute:
+                try:
+                    print(f"Input shape: {input[0].get_plain_text()}")
+                    print(f"Input shape: {input[0].get_plain_text().max()}")
+                except:
+                    pass
+                exit(0)
+            '''
+            '''
             if "Greater" in node_to_compute:
                 try:
                     print(f"Input shape: {input[0].get_plain_text().shape}")
