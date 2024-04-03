@@ -487,9 +487,19 @@ def erf(tensor):
     return y
 
 
+max_v = 0.0
+min_v = 0.0
 def softmax(self, dim, **kwargs):
     r"""Compute the softmax of a tensor's elements along a given dimension"""
     # 0-d case
+    '''
+    global max_v, min_v
+    secret = self.get_plain_text()
+    cur_max, cur_min = secret.max().item(), secret.min().item()
+    max_v = max(cur_max, max_v)
+    min_v = min(cur_min, min_v)
+    print("Softmax inputs: ", cur_max, cur_min, max_v, min_v)
+    '''
     mode = cfg.functions.softmax_method
     if self.dim() == 0:
         assert dim == 0, "Improper dim argument"
@@ -498,10 +508,13 @@ def softmax(self, dim, **kwargs):
     if self.size(dim) == 1:
         return self.new(torch.ones_like(self.data))
 
+    if cfg.functions.softmax_lower_thres:
+        valid = self > -600
+
     #start_t = time.time()
     if mode == "exact":
         plain = self.get_plain_text()
-        plain = torch.nn.functional.softmax(plain)
+        plain = torch.nn.functional.softmax(plain, dim=-1)
         result = crypten.cryptensor(plain)
         return result
     elif mode == "max":
@@ -516,6 +529,8 @@ def softmax(self, dim, **kwargs):
         logits = self.where(self < thres, thres)
         logits = logits - thres
     numerator = logits.exp()
+    if cfg.functions.softmax_lower_thres:
+        numerator = numerator.where(valid, 0.)
     with cfg.temp_override({"functions.reciprocal_all_pos": True}):
         inv_denominator = numerator.sum(dim, keepdim=True).reciprocal()
 
