@@ -189,7 +189,7 @@ def reciprocal(self, input_in_01=False):
         nr_iters = cfg.functions.reciprocal_nr_iters
         if initial == "default":
             result = 3 * (1 - 2 * self).exp() + 0.003
-        if initial == "threshold":
+        elif initial == "threshold":
             result = 3 * (1 - 2 * self).exp() + 0.003
             result = result.where(self < 500, 0)
         else:
