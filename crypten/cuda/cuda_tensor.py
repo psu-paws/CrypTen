@@ -15,7 +15,6 @@ import math
 import operator
 
 import torch
-import gemm64
 
 from crypten.config import cfg
 
@@ -257,6 +256,7 @@ class CUDALongTensor(object):
     @implements(torch.matmul)
     def matmul(x, y, *args, **kwargs):
         if cfg.functions.matmul == "cutlass":
+            import gemm64
             if len(y.shape) == 2:
                 # None-batched gemm (linear)
                 x_shape = x.shape

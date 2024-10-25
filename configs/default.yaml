@@ -44,6 +44,8 @@ functions:
   # added by Kiwan
   ltz_mode: "default"
   ltz_msb: 64
+
+  matmul: "crypten"
 mpc:
   active_security: False
   provider: "TFP"
