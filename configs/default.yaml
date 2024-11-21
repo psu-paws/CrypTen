@@ -45,7 +45,7 @@ functions:
   ltz_mode: "default"
   ltz_msb: 64
 
-  matmul: "crypten"
+  matmul: "cutlass"
 mpc:
   active_security: False
   provider: "TFP"

@@ -269,14 +269,14 @@ class CUDALongTensor(object):
                     K = x_shape[1]
                     N = y_shape[1]
                     out = torch.zeros([M, N], dtype=torch.long).to(x.device)
-                    gemm64.cutlassGemm64(x.tensor(), y.tensor(), out, M, K, N, 1)
+                    gemm64.cutlassGemm64(x.tensor(), y.tensor() if hasattr(y, "tensor") else y, out, M, K, N, 1)
                 else:
                     BS = x_shape[0]
                     M = x_shape[1]
                     K = x_shape[2]
                     N = y_shape[1]
                     out = torch.zeros([BS * M, N], dtype=torch.long).to(x.device)
-                    gemm64.cutlassGemm64(x.tensor(), y.tensor(), out, BS * M, K, N, 1)
+                    gemm64.cutlassGemm64(x.tensor(), y.tensor() if hasattr(y, "tensor") else y, out, BS * M, K, N, 1)
                     out = out.reshape(BS, M, N)
                 return CUDALongTensor(out)
             else:
