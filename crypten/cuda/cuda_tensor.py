@@ -261,7 +261,6 @@ class CUDALongTensor(object):
                 # None-batched gemm (linear)
                 x_shape = x.shape
                 y_shape = y.shape
-                #print(x_shape, y_shape)
                 assert(len(x_shape) in [2, 3])
                 assert(len(y_shape) == 2)
                 if len(x_shape) == 2:
@@ -269,14 +268,14 @@ class CUDALongTensor(object):
                     K = x_shape[1]
                     N = y_shape[1]
                     out = torch.zeros([M, N], dtype=torch.long).to(x.device)
-                    gemm64.cutlassGemm64(x.tensor(), y.tensor() if hasattr(y, "tensor") else y, out, M, K, N, 1)
+                    gemm64.matmul(x.tensor().contiguous(), (y.tensor() if hasattr(y, "tensor") else y).contiguous(), out, M, K, N, 1)
                 else:
                     BS = x_shape[0]
                     M = x_shape[1]
                     K = x_shape[2]
                     N = y_shape[1]
                     out = torch.zeros([BS * M, N], dtype=torch.long).to(x.device)
-                    gemm64.cutlassGemm64(x.tensor(), y.tensor() if hasattr(y, "tensor") else y, out, BS * M, K, N, 1)
+                    gemm64.matmul(x.tensor().contiguous(), (y.tensor() if hasattr(y, "tensor") else y).contiguous(), out, BS * M, K, N, 1)
                     out = out.reshape(BS, M, N)
                 return CUDALongTensor(out)
             else:
@@ -293,7 +292,7 @@ class CUDALongTensor(object):
                 assert(bs == y_t.shape[0])
 
                 out = torch.zeros([bs, M, N], dtype=torch.long).to(x.device)
-                gemm64.cutlassGemm64(x_t, y_t, out, M, K, N, bs)
+                gemm64.matmul(x_t.contiguous(), y_t.contiguous(), out, M, K, N, bs)
                 out = out.reshape(*x_shape[:-2], M, N)
                 return CUDALongTensor(out)
         else:
