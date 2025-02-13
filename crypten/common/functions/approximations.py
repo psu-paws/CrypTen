@@ -476,6 +476,12 @@ def erf(tensor):
     iters = cfg.functions.erf_iterations
     mode = cfg.functions.erf_method
 
+    if mode == "exact":
+        plain = tensor.get_plain_text()
+        plain = torch.erf(plain)
+        result = crypten.cryptensor(plain)
+        return result
+
     output = tensor.clone()
     for n in range(1, iters + 1):
         multiplier = ((-1) ** n) / (math.factorial(n) * (2 * n + 1))
@@ -517,19 +523,9 @@ def softmax(self, dim, **kwargs):
         plain = torch.nn.functional.softmax(plain, dim=-1)
         result = crypten.cryptensor(plain)
         return result
-    elif mode == "no_max":
-        logits = self
     elif mode == "max":
         maximum_value = self.max(dim, keepdim=True)[0]
         logits = self - maximum_value
-    elif mode == "div":
-        logits = self / 100.
-    elif mode == "constant":
-        # This is an effort to avoid the super expensive max function.
-        # But this doesn't work well..
-        thres = 10.
-        logits = self.where(self < thres, thres)
-        logits = logits - thres
     numerator = logits.exp()
     if cfg.functions.softmax_lower_thres:
         numerator = numerator.where(valid, 0.)
