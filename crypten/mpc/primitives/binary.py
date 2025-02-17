@@ -17,7 +17,7 @@ from crypten.cuda import CUDALongTensor
 from crypten.encoder import FixedPointEncoder
 
 from . import beaver, circuit
-from ..hummingbird import bitpack, bitunpack
+from ..hummingbird import bitpack, bitunpack, get_hummingbird_msb
 from crypten.config import cfg
 
 SENTINEL = -1
@@ -380,9 +380,8 @@ class BinarySharedTensor:
         shares = [tensor.share for tensor in tensor_or_list]
         op = torch.distributed.ReduceOp.BXOR
 
-        mode = cfg.functions.ltz_mode
-        msb = cfg.functions.ltz_msb
-        if mode == "hummingbird":
+        msb = get_hummingbird_msb()
+        if msb is not None:
             shares = [bitpack(s, msb) for s in shares]
             shape = shares[0][1]
             shares = [s[0] for s in shares]
@@ -392,7 +391,7 @@ class BinarySharedTensor:
         else:
             res = comm.get().reduce(shares, dst, op=op, batched=True)
 
-        if mode == "hummingbird":
+        if msb is not None:
             res = [bitunpack(t, msb, shape) for t in res]
 
         return res
