@@ -10,6 +10,7 @@ import math
 
 import torch
 from crypten.config import cfg
+from ..hummingbird import get_hummingbird_msb
 
 # Cache masks and constants to skip computation during each call
 __BITS = torch.iinfo(torch.long).bits
@@ -63,15 +64,14 @@ def __SPK_circuit(S, P):
     """
     from .binary import BinarySharedTensor
 
-    mode = cfg.functions.ltz_mode
-    msb = cfg.functions.ltz_msb
+    msb = get_hummingbird_msb()
 
     # Vectorize private AND calls to reduce rounds:
     SP = BinarySharedTensor.stack([S, P])
 
     __MASKS, __OUT_MASKS, __MULTIPLIERS = __SPK_circuit_constants(SP.device)
 
-    if mode == "hummingbird":
+    if msb is not None:
         numbits = math.ceil(math.log2(msb))
     else:
         numbits = __LOG_BITS

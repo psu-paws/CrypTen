@@ -41,11 +41,8 @@ functions:
   # error function configuration:
   erf_iterations: 8
 
-  # added by Kiwan
-  ltz_mode: "default"
-  ltz_msb: 64
-
   matmul: "cutlass"
+  #matmul: "crypten"
 mpc:
   active_security: False
   provider: "TFP"

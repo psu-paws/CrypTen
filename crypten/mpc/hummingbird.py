@@ -2,6 +2,16 @@ import torch
 import math
 from crypten.cuda.cuda_tensor import CUDALongTensor
 
+hummingbird_msb = None
+
+def set_hummingbird_msb(val):
+    global hummingbird_msb
+    hummingbird_msb = val
+
+def get_hummingbird_msb():
+    global hummingbird_msb
+    return hummingbird_msb
+
 def bitpack(t, bitwidth):
     t &= (2 ** bitwidth - 1)
     shape = t.shape
