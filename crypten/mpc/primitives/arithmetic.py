@@ -339,6 +339,7 @@ class ArithmeticSharedTensor:
         return self._arithmetic_function(y, op, inplace=True, *args, **kwargs)
 
     def _arithmetic_function(self, y, op, inplace=False, *args, **kwargs):  # noqa:C901
+        #print(op, self, y)
         assert op in [
             "add",
             "sub",
@@ -349,22 +350,11 @@ class ArithmeticSharedTensor:
             "conv_transpose1d",
             "conv_transpose2d",
         ], f"Provided op `{op}` is not a supported arithmetic function"
-        start_t = time.time()
 
         additive_func = op in ["add", "sub"]
         public = isinstance(y, (int, float)) or is_tensor(y)
+        is_float = isinstance(y, float) or is_float_tensor(y)
         private = isinstance(y, ArithmeticSharedTensor)
-
-        # Kiwan: TODO: Here is a potential bug. When self._scale == 1 and y is public, crypten becomes incorrect.
-        # This happens when crypten.where() is called:
-        # condition * y is done, and condition is boolean (_scale=1).
-        # In the original CrypTen code, this makes y's scale to become 1, hence if y was a float, it becomes an integer.
-        # Not sure how to fix this correctly, so patching crypten.where() for now (this bug can manifest in the future)
-        '''
-        if self.encoder.scale == 1 and public:
-            self.encoder._scale = int(2**cfg.encoder.precision_bits)
-            self.share *= int(2**cfg.encoder.precision_bits)
-        '''
 
         if inplace:
             result = self
@@ -374,7 +364,16 @@ class ArithmeticSharedTensor:
             result = self.clone()
 
         if public:
+            if not additive_func and result.encoder.scale == 1 and is_float:
+                # Kiwan: Fixing a bug where self._scale == 1 and y is a public float.
+                # This happens when crypten.where() is called:
+                # condition * y is done, and condition is boolean (_scale=1).
+                # In the original CrypTen code, this makes y's scale to become 1, hence if y was a float, it becomes an integer.
+                # TODO: Encoder management may be buggy. Make sure it is correct, esp when moving towards per-layer precision.
+                # TODO: This may have some issue if self is in-place op.
+                result.encoder = FixedPointEncoder(precision_bits=cfg.encoder.precision_bits)
             y = result.encoder.encode(y, device=self.device)
+            #y = encoder.encode(y, device=self.device)
 
             if additive_func:  # ['add', 'sub']
                 if result.rank == 0:
@@ -406,8 +405,10 @@ class ArithmeticSharedTensor:
             if public:  # scale by self.encoder.scale
                 if self.encoder.scale > 1:
                     return result.div_(result.encoder.scale)
-                else:
-                    result.encoder = self.encoder
+                # Kiwan: TODO: Below two lines seem unnecessary.
+                # Not sure why they are there. Removing...
+                #else:
+                #    result.encoder = self.encoder
             else:  # scale by larger of self.encoder.scale and y.encoder.scale
                 if self.encoder.scale > 1 and y.encoder.scale > 1:
                     return result.div_(result.encoder.scale)
@@ -416,11 +417,6 @@ class ArithmeticSharedTensor:
                 else:
                     result.encoder = y.encoder
 
-        end_t = time.time()
-        op += "_arith"
-        if op not in time_per_op:
-            time_per_op[op] = 0.
-        time_per_op[op] += end_t - start_t
         return result
 
     def add(self, y):

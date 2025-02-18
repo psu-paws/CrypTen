@@ -439,14 +439,6 @@ def where(condition, input, other):
     Return a tensor of elements selected from either `input` or `other`, depending
     on `condition`.
     """
-    # Kiwan: TODO: Temporary bug fix. This is not fixing
-    # the root cause (see mpc/primitives/arithmetic.py
-    # _arithmetic_function().
-    # TODO: Is this and or or?
-    if torch.is_tensor(input) and torch.is_tensor(other):
-        condition.encoder._scale = int(2**cfg.encoder.precision_bits)
-        condition.share *= condition.encoder._scale
-
     if is_encrypted_tensor(condition):
         return condition * input + (1 - condition) * other
     elif torch.is_tensor(condition):
