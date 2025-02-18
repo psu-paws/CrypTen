@@ -745,7 +745,14 @@ class Graph(Container):
             rank = int(os.environ.get("RANK"))
             if node_to_compute not in time_per_node:
                 time_per_node[node_to_compute] = 0.
-            #print(f"====================== {node_to_compute} =================================")
+            '''
+            print(f"====================== {node_to_compute} =================================")
+            try:
+                print(f"Input shape: {[x.get_plain_text().shape for x in input]}")
+                print(f"Output: {output.get_plain_text().shape}")
+            except:
+                pass
+            '''
 
             # compute output of module:
             input = [values[name] for name in self._graph[node_to_compute]]
@@ -774,25 +781,6 @@ class Graph(Container):
             tmp_t = end_t
             time_per_node[node_to_compute] += end_t - start_t
 
-            '''
-            if "Softmax" in node_to_compute:
-                try:
-                    print(f"Input shape: {input[0].get_plain_text()}")
-                    print(f"Input shape: {input[0].get_plain_text().max()}")
-                except:
-                    pass
-                exit(0)
-            '''
-            '''
-            if "Greater" in node_to_compute:
-                try:
-                    print(f"Input shape: {input[0].get_plain_text().shape}")
-                except:
-                    pass
-                print(node_to_compute)
-                print(end_t - start_t)
-                print(communicator.get_communication_stats())
-            '''
             '''
             if "MatMul" in node_to_compute:
                 print(f"====================== {node_to_compute} =================================")
@@ -1974,6 +1962,11 @@ class _ConstantPad(Module):
             input = input[0]
         else:
             padding = self.padding
+        # TODO: Kiwan: Hardcode for now. Not sure why the original one is incorrect.
+        # This is hardcoded for the ResNet to work with CrypTen baseline code from Meta.
+        # This will not work on some other models...
+        if padding == (0, 0, 1, 1, 0, 0, 1, 1):
+            padding = (1, 1, 1, 1)
         return input.pad(padding, value=self.value, mode=self.mode)
 
     @staticmethod
