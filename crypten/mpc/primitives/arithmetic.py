@@ -5,6 +5,7 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
+import crypten
 import crypten.communicator as comm
 
 # dependencies:
@@ -478,7 +479,12 @@ class ArithmeticSharedTensor:
             if comm.get().get_world_size() > 2:
                 protocol = globals()[cfg.mpc.protocol]
                 protocol.truncate(self, y)
+            elif cfg.mpc.truncation == "aby3":
+                protocol = globals()[cfg.mpc.protocol]
+                protocol.truncate_aby3(self, y)
             else:
+                #exact_val = self.get_plain_text() / y
+                #self = ArithmeticSharedTensor(exact_val)
                 self.share = self.share.div_(y, rounding_mode="trunc")
 
             # Validate
@@ -487,7 +493,6 @@ class ArithmeticSharedTensor:
                     torch.abs(self.get_plain_text() * y - tensor), tolerance
                 ).all():
                     raise ValueError("Final result of division is incorrect.")
-
             return self
 
         # Otherwise multiply by reciprocal
@@ -661,6 +666,42 @@ class ArithmeticSharedTensor:
         result = self.clone()
         return result.scatter_(dim, index, src)
 
+
+    '''
+    def floor(self, inplace=False):
+        if not inplace:
+            result = self.clone()
+        else:
+            result = self
+        #return result.bitwise_right_shift(precision_bits, inplace=True).bitwise_left_shift(precision_bits, inplace=True)
+    def bitwise_shift(self, y, op, inplace=False):
+        # TODO: This impl is incorrect. For example,
+        # assume x = 4, and the two secret shares are -3 and 7.
+        # sra by 1 makes the secrets -2 and 3, making the result 1 (instead of 2).
+        # This happens because when both secret shares are odd,
+        # both loses 1, losing 2.
+
+        public = isinstance(y, (int, float)) or is_tensor(y)
+        if not inplace:
+            result = self.clone()
+        else:
+            result = self
+        if public:
+            if isinstance(y, float) or is_float_tensor(y):
+                raise AssertionError("Cannot shift with float value")
+            elif y < 0:
+                raise AssertionError("Cannot shift by a negative amount")
+            result.share._tensor = getattr(result.share._tensor, op)(y)
+            return result
+        else:
+            raise NotImplementedError()
+
+    def bitwise_right_shift(self, y, inplace=False):
+        return self.bitwise_shift(y, "bitwise_right_shift", inplace=inplace)
+
+    def bitwise_left_shift(self, y, inplace=False):
+        return self.bitwise_shift(y, "bitwise_left_shift", inplace=inplace)
+    '''
     # overload operators:
     __add__ = add
     __iadd__ = add_

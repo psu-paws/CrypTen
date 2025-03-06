@@ -41,12 +41,14 @@ functions:
   # error function configuration:
   erf_iterations: 8
 
-  matmul: "cutlass"
-  #matmul: "crypten"
+  #matmul: "cutlass"
+  matmul: "crypten"
 mpc:
   active_security: False
   provider: "TFP"
   protocol: "beaver"
+  #truncation: "aby3"
+  truncation: "crypten"
 nn:
   dpsmpc:
     protocol: "layer_estimation"

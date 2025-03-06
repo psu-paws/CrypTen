@@ -17,6 +17,16 @@ from .provider import TupleProvider
 class TrustedFirstParty(TupleProvider):
     NAME = "TFP"
 
+    def generate_truncation_rng(self, y, size, device=None):
+        #print(y, type(y))
+        r_ = generate_random_ring_element(size, device=device)
+        #print(r_, type(r_))
+        #r = r_.clone()
+        r = r_.__floordiv__(y)
+        r = ArithmeticSharedTensor(r, precision=0, src=0)
+        r_ = ArithmeticSharedTensor(r_, precision=0, src=0)
+        return r, r_
+
     def generate_additive_triple(self, size0, size1, op, device=None, *args, **kwargs):
         """Generate multiplicative triples of given sizes"""
         a = generate_random_ring_element(size0, device=device)

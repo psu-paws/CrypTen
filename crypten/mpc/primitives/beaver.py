@@ -85,7 +85,6 @@ def __beaver_protocol(op, x, y, *args, **kwargs):
     c._tensor += getattr(torch, op)(epsilon, b._tensor, *args, **kwargs)
     c._tensor += getattr(torch, op)(a._tensor, delta, *args, **kwargs)
     c += getattr(torch, op)(epsilon, delta, *args, **kwargs)
-
     end_t = time.time()
     op += "_beaver"
     if op not in time_per_op:
@@ -179,6 +178,19 @@ def truncate(x, y):
     # larger than the largest long integer.
     correction = wrap_count * 4 * (int(2**62) // y)
     x.share -= correction.share
+    return x
+
+
+def truncate_aby3(x, y):
+    """Protocol to divide an ArithmeticSharedTensor `x` by a constant integer `y`
+    This implements what was proposed in the ABY3 paper. Note: There is a paper claiming that this method is insecure (I don't know how significant the vulnerability is). Still implementing for comparison with other frameworks using it.
+    """
+    provider = crypten.mpc.get_default_provider()
+    r, r_ = provider.generate_truncation_rng(y, x.size(), device=x.device)
+    with IgnoreEncodings([x, r_]):
+        x_r_ = (x - r_).reveal()
+    r += x_r_.__floordiv__(y)
+    x.share = r.share
     return x
 
 
