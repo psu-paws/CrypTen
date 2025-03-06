@@ -19,6 +19,27 @@ __all__ = [
     "min",
 ]
 
+# import crypten
+# class CommStatTrackingHelper:
+#     def __init__(self):
+#         self.communicator = crypten.communicator.get()
+#         initial_stats = self.communicator.get_communication_stats()
+        
+#         self.rounds = initial_stats["rounds"]
+#         self.bytes = initial_stats["bytes"]
+#         self.time = initial_stats["time"]
+    
+#     def print_stats(self, name: str):
+#         stats = self.communicator.get_communication_stats()
+        
+#         rounds = stats["rounds"]
+#         bytes = stats["bytes"]
+#         time = stats["time"]
+        
+#         print(f"{name}: Rounds {rounds - self.rounds}, Bytes {bytes - self.bytes}, time {time - self.time}")
+        
+#         self.rounds, self.bytes, self.time = rounds, bytes, time
+
 
 def argmax(self, dim=None, keepdim=False, one_hot=True):
     """Returns the indices of the maximum value of all elements in the
@@ -48,7 +69,7 @@ def argmin(self, dim=None, keepdim=False, one_hot=True):
     return (-self).argmax(dim=dim, keepdim=keepdim, one_hot=one_hot)
 
 
-def max(self, dim=None, keepdim=False, one_hot=True):
+def max(self, dim=None, keepdim=False, one_hot=True, *, include_argmax=True):
     """Returns the maximum value of all elements in the input tensor."""
     method = cfg.functions.max_method
     if dim is None:
@@ -62,24 +83,42 @@ def max(self, dim=None, keepdim=False, one_hot=True):
             max_result = self.mul(argmax_result).sum()
         return max_result
     else:
-        argmax_result, max_result = _argmax_helper(
-            self, dim=dim, one_hot=True, method=method, _return_max=True
-        )
+        # tracker = CommStatTrackingHelper()
+        if include_argmax:
+            argmax_result, max_result = _argmax_helper(
+                self, dim=dim, one_hot=True, method=method, _return_max=True
+            )
+        else:
+            if method in ["log_reduction", "double_log_reduction"]:
+                # max_result can be obtained directly
+                max_result = _max_helper_all_tree_reductions(self, method=method, dim=dim)
+            else:
+            # max_result needs to be obtained through argmax
+                with cfg.temp_override({"functions.max_method": method}):
+                    argmax_result = self.argmax(one_hot=True, dim=dim)
+                max_result = self.mul(argmax_result).sum()
+            argmax_result = None
+        # tracker.print_stats("POINT A1")
         if max_result is None:
             max_result = (self * argmax_result).sum(dim=dim, keepdim=keepdim)
+        # tracker.print_stats("POINT A2")
         if keepdim:
             max_result = (
                 max_result.unsqueeze(dim)
                 if max_result.dim() < self.dim()
                 else max_result
             )
-        if one_hot:
-            return max_result, argmax_result
+        
+        if include_argmax:
+            if one_hot:
+                return max_result, argmax_result
+            else:
+                return (
+                    max_result,
+                    _one_hot_to_index(argmax_result, dim, keepdim, self.device),
+                )
         else:
-            return (
-                max_result,
-                _one_hot_to_index(argmax_result, dim, keepdim, self.device),
-            )
+            return max_result
 
 
 def min(self, dim=None, keepdim=False, one_hot=True):
@@ -134,6 +173,7 @@ def _compute_pairwise_comparisons_for_steps(input_tensor, dim, steps):
 
 def _max_helper_log_reduction(enc_tensor, dim=None):
     """Returns max along dim `dim` using the log_reduction algorithm"""
+    # tracker = CommStatTrackingHelper()
     if enc_tensor.dim() == 0:
         return enc_tensor
     input, dim_used = enc_tensor, dim
@@ -141,15 +181,25 @@ def _max_helper_log_reduction(enc_tensor, dim=None):
         dim_used = 0
         input = enc_tensor.flatten()
     n = input.size(dim_used)  # number of items in the dimension
-    steps = int(math.log(n))
+    
+    # Jinyu: They used natural log instead of log base 2
+    # steps = int(math.log(n))
+    steps = (int(n) - 1).bit_length()
+    # tracker.print_stats("POINT 1")
+    # print(steps)
+    # print(f"{input.shape=}")
     enc_tensor_reduced = _compute_pairwise_comparisons_for_steps(input, dim_used, steps)
+    # tracker.print_stats("POINT 2")
+    # print(f"{enc_tensor_reduced.shape=}")
 
+    # Jinyu: This entire following block is unnessary if they did the steps calcuation above correctly
     # compute max over the resulting reduced tensor with n^2 algorithm
     # note that the resulting one-hot vector we get here finds maxes only
     # over the reduced vector in enc_tensor_reduced, so we won't use it
-    with cfg.temp_override({"functions.max_method": "pairwise"}):
-        enc_max_vec, enc_one_hot_reduced = enc_tensor_reduced.max(dim=dim_used)
-    return enc_max_vec
+    # with cfg.temp_override({"functions.max_method": "pairwise"}):
+    #     enc_max_vec, enc_one_hot_reduced = enc_tensor_reduced.max(dim=dim_used)
+    # tracker.print_stats("POINT 3")
+    return enc_tensor_reduced
 
 
 def _max_helper_double_log_recursive(enc_tensor, dim):
@@ -282,6 +332,7 @@ def _argmax_helper(
     the highest value in the appropriate dimension of the tensor. Sets up the CrypTensor
     appropriately, and then chooses among the different argmax algorithms.
     """
+    # tracker = CommStatTrackingHelper()
     if enc_tensor.dim() == 0:
         result = (
             enc_tensor.new(torch.ones(()))
@@ -291,8 +342,9 @@ def _argmax_helper(
         if _return_max:
             return result, None
         return result
-
+    # tracker.print_stats("POINT B1")
     updated_enc_tensor = enc_tensor.flatten() if dim is None else enc_tensor
+    # tracker.print_stats("POINT B2")
 
     if method == "pairwise":
         result_args, result_val = _argmax_helper_pairwise(updated_enc_tensor, dim)
@@ -300,11 +352,13 @@ def _argmax_helper(
         result_args, result_val = _argmax_helper_all_tree_reductions(
             updated_enc_tensor, dim, method
         )
+        # tracker.print_stats("POINT B3")
     else:
         raise RuntimeError("Unknown argmax method")
 
     # Break ties by using a uniform weighted sample among tied indices
     result_args = result_args.weighted_index(dim)
+    # tracker.print_stats("POINT B4")
     result_args = result_args.view(enc_tensor.size()) if dim is None else result_args
 
     if _return_max:
