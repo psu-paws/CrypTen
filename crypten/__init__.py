@@ -439,11 +439,19 @@ def where(condition, input, other):
     Return a tensor of elements selected from either `input` or `other`, depending
     on `condition`.
     """
+    # if is_encrypted_tensor(condition):
+    #     return condition * input + (1 - condition) * other
+    # elif torch.is_tensor(condition):
+    #     condition = condition.float()
+    # return input * condition + other * (1 - condition)
     if is_encrypted_tensor(condition):
-        return condition * input + (1 - condition) * other
+        inverse_condition = (1 - condition)
+        stacked_result = crypten.stack([condition, inverse_condition])  * crypten.stack([input, other])
+        return stacked_result[0] + stacked_result[1]
     elif torch.is_tensor(condition):
         condition = condition.float()
     return input * condition + other * (1 - condition)
+
 
 
 def cat(tensors, dim=0):

@@ -16,6 +16,27 @@ __all__ = [
     "max_pool2d",
 ]
 
+# import crypten
+# class CommStatTrackingHelper:
+#     def __init__(self):
+#         self.communicator = crypten.communicator.get()
+#         initial_stats = self.communicator.get_communication_stats()
+        
+#         self.rounds = initial_stats["rounds"]
+#         self.bytes = initial_stats["bytes"]
+#         self.time = initial_stats["time"]
+    
+#     def print_stats(self, name: str):
+#         stats = self.communicator.get_communication_stats()
+        
+#         rounds = stats["rounds"]
+#         bytes = stats["bytes"]
+#         time = stats["time"]
+        
+#         print(f"{name}: Rounds {rounds - self.rounds}, Bytes {bytes - self.bytes}, time {time - self.time}")
+        
+#         self.rounds, self.bytes, self.time = rounds, bytes, time
+
 
 def max_pool2d(
     self,
@@ -29,7 +50,10 @@ def max_pool2d(
     """Applies a 2D max pooling over an input signal composed of several
     input planes.
     """
+    
+    # tracker = CommStatTrackingHelper()
     max_input = self.clone()
+    # tracker.print_stats("POINT A")
     max_input.data, output_size = _pool2d_reshape(
         self.data,
         kernel_size,
@@ -43,13 +67,21 @@ def max_pool2d(
         pad_value=(-(2**24)),
         # TODO: Find a better solution for padding with max_pooling
     )
-    max_vals, argmax_vals = max_input.max(dim=-1, one_hot=True)
+    # tracker.print_stats("POINT B")
+    # print(f"{max_input.shape=}")
+    if return_indices:
+        max_vals, argmax_vals = max_input.max(dim=-1, one_hot=True)
+    else:
+        max_vals = max_input.max(dim=-1, one_hot=True, include_argmax=False)
+    # tracker.print_stats("POINT C")
     max_vals = max_vals.view(output_size)
+    # tracker.print_stats("POINT D")
     if return_indices:
         if isinstance(kernel_size, int):
             kernel_size = (kernel_size, kernel_size)
         argmax_vals = argmax_vals.view(output_size + kernel_size)
         return max_vals, argmax_vals
+    # tracker.print_stats("POINT E")
     return max_vals
 
 
