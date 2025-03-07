@@ -445,6 +445,39 @@ def _ensure_encrypted(input):
     else:
         return input
 
+def _ensure_uniform_scale(tensors):
+    """ Rescale a list of arithmatic tensors to the most percsise scale among inputs"""
+    ttypes = [type(t) for t in tensors]
+    assert all(ttypes[0] == ttype for ttype in ttypes)
+    
+    if isinstance(tensors[0], crypten.mpc.mpc.MPCTensor):
+        ptypes = [t.ptype for t in tensors]
+        assert all (ptypes[0] == ptype for ptype in ptypes)
+        
+        if ptypes[0] is crypten.mpc.ptype.arithmetic:
+            scales = [t.encoder.scale for t in tensors]
+            uniform_scale = max(scales)
+            # print(f"{uniform_scale=}")
+            uniform_precision_bits = (uniform_scale - 1).bit_length()
+            # print(f"{uniform_precision_bits=}")
+            from crypten.encoder import FixedPointEncoder
+            uniform_encoder = FixedPointEncoder(precision_bits=uniform_precision_bits)
+            
+            output = []
+            for i in range(len(tensors)):
+                if tensors[i].encoder.scale != uniform_scale:
+                    new_tensor = tensors[i].clone()
+                    new_tensor._tensor = tensors[i]._tensor.encode(uniform_encoder)
+                    output.append(new_tensor)
+                else:
+                    output.append(tensors[i])
+            # scales = [t.encoder.scale for t in output]
+            # print(scales)
+            
+            return output
+        
+    return tensors
+
 def broadcast_to(input, shape):
     if is_encrypted_tensor(input):
         result = input.clone()
@@ -489,8 +522,6 @@ def where(condition, input, other):
         print(f"{input.size()=}")
         print(f"{other.size()=}")
         
-        
-        
         inverse_condition = (1 - condition)
         stacked_result = crypten.stack([condition, inverse_condition])  * crypten.stack([input, other])
         return stacked_result[0] + stacked_result[1]
@@ -504,6 +535,7 @@ def cat(tensors, dim=0):
     """
     Concatenates the specified CrypTen `tensors` along dimension `dim`.
     """
+    # print([t.size() for t in tensors])
     assert isinstance(tensors, list), "input to cat must be a list"
     if all(torch.is_tensor(t) for t in tensors):
         return torch.cat(tensors)
@@ -515,6 +547,8 @@ def cat(tensors, dim=0):
     ), "cannot concatenate CrypTensors with different underlying types"
     if len(tensors) == 1:
         return tensors[0]
+    tensors = _ensure_uniform_scale(tensors)
+    # print([t.size() for t in tensors])
     return type(tensors[0]).cat(tensors, dim=dim)
 
 
@@ -535,6 +569,9 @@ def stack(tensors, dim=0):
     ), "cannot stack CrypTensors with different underlying types"
     if len(tensors) == 1:
         return tensors[0].unsqueeze(dim)
+    
+    # print(type(tensors[0]))
+    tensors = _ensure_uniform_scale(tensors)
     return type(tensors[0]).stack(tensors, dim=dim)
 
 
