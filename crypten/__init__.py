@@ -433,6 +433,25 @@ def save(obj, f, save_closure=torch.save, **kwargs):
     save_closure(obj, f, **kwargs)
     comm.get().barrier()
 
+def _ensure_is_tensor(input):
+    if not (is_encrypted_tensor(input) or torch.is_tensor(input)):
+        return torch.tensor(input)
+    else:
+        return input
+
+def _ensure_encrypted(input):
+    if not is_encrypted_tensor(input):
+        return crypten.cryptensor(input)
+    else:
+        return input
+
+def broadcast_to(input, shape):
+    if is_encrypted_tensor(input):
+        result = input.clone()
+        result.share = torch.broadcast_to(input.share, shape)
+        return result
+    else:
+        return torch.broadcast_to(input, shape)
 
 def where(condition, input, other):
     """
@@ -444,7 +463,34 @@ def where(condition, input, other):
     # elif torch.is_tensor(condition):
     #     condition = condition.float()
     # return input * condition + other * (1 - condition)
+    condition, input, other = _ensure_is_tensor(condition), _ensure_is_tensor(input), _ensure_is_tensor(other)
+    
     if is_encrypted_tensor(condition):
+        values_encrypted = is_encrypted_tensor(input) or is_encrypted_tensor(other)
+        
+        if values_encrypted:
+            # encrypt both if at least one is encrypted
+            input = _ensure_encrypted(input)
+            other = _ensure_encrypted(other)
+        
+        # broadcast
+        print(f"{condition.size()=}")
+        print(f"{input.size()=}")
+        print(f"{other.size()=}")
+        
+        broadcast_shape = torch.broadcast_shapes(condition.size(), input.size(), other.size())
+        
+        condition = broadcast_to(condition, broadcast_shape)
+        input = broadcast_to(input, broadcast_shape)
+        other = broadcast_to(other, broadcast_shape)
+        
+        print(f"{broadcast_shape=}")
+        print(f"{condition.size()=}")
+        print(f"{input.size()=}")
+        print(f"{other.size()=}")
+        
+        
+        
         inverse_condition = (1 - condition)
         stacked_result = crypten.stack([condition, inverse_condition])  * crypten.stack([input, other])
         return stacked_result[0] + stacked_result[1]
@@ -477,6 +523,10 @@ def stack(tensors, dim=0):
     Stacks the specified CrypTen `tensors` along dimension `dim`. In contrast to
     `crypten.cat`, this adds a dimension to the result tensor.
     """
+    # default to torch.stack if inputs are all normal tensors
+    if all(torch.is_tensor(t) for t in tensors):
+        return torch.stack(tensors, dim)
+    
     assert isinstance(tensors, list), "input to stack must be a list"
     assert all(isinstance(t, CrypTensor) for t in tensors), "inputs must be CrypTensors"
     tensor_types = [get_cryptensor_type(t) for t in tensors]
