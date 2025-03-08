@@ -507,9 +507,9 @@ def where(condition, input, other):
             other = _ensure_encrypted(other)
         
         # broadcast
-        print(f"{condition.size()=}")
-        print(f"{input.size()=}")
-        print(f"{other.size()=}")
+        # print(f"{condition.size()=}")
+        # print(f"{input.size()=}")
+        # print(f"{other.size()=}")
         
         broadcast_shape = torch.broadcast_shapes(condition.size(), input.size(), other.size())
         
@@ -517,10 +517,10 @@ def where(condition, input, other):
         input = broadcast_to(input, broadcast_shape)
         other = broadcast_to(other, broadcast_shape)
         
-        print(f"{broadcast_shape=}")
-        print(f"{condition.size()=}")
-        print(f"{input.size()=}")
-        print(f"{other.size()=}")
+        # print(f"{broadcast_shape=}")
+        # print(f"{condition.size()=}")
+        # print(f"{input.size()=}")
+        # print(f"{other.size()=}")
         
         inverse_condition = (1 - condition)
         stacked_result = crypten.stack([condition, inverse_condition])  * crypten.stack([input, other])
