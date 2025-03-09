@@ -39,6 +39,7 @@ functions:
   trig_iterations: 10
 
   # error function configuration:
+  erf_method: "crypten"
   erf_iterations: 8
 
   #matmul: "cutlass"
