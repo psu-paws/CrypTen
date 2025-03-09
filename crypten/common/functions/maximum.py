@@ -199,6 +199,10 @@ def _max_helper_log_reduction(enc_tensor, dim=None):
     # with cfg.temp_override({"functions.max_method": "pairwise"}):
     #     enc_max_vec, enc_one_hot_reduced = enc_tensor_reduced.max(dim=dim_used)
     # tracker.print_stats("POINT 3")
+    
+    # remove extra dim
+    enc_tensor_reduced = enc_tensor_reduced.squeeze(dim=dim_used)
+    
     return enc_tensor_reduced
 
 
@@ -314,11 +318,15 @@ def _argmax_helper_all_tree_reductions(enc_tensor, dim=None, method="log_reducti
     `accelerated_cascade`: Uses O(n) comparisons and O(loglog n) rounds of
     communication. (See Section 2.6.3 of https://folk.idi.ntnu.no/mlh/algkon/jaja.pdf)
     """
+    
+    # print(f"A1 {enc_tensor.size()=}")
     enc_max_vec = _max_helper_all_tree_reductions(enc_tensor, dim=dim, method=method)
+    # print(f"A1 {enc_max_vec.size()=}")
     # reshape back to the original size
     enc_max_vec_orig = enc_max_vec
     if dim is not None:
         enc_max_vec_orig = enc_max_vec.unsqueeze(dim)
+    # print(f"A1 {enc_max_vec_orig.size()=}")
     # compute the one-hot vector over the entire tensor
     enc_one_hot_vec = enc_tensor.eq(enc_max_vec_orig)
     return enc_one_hot_vec, enc_max_vec

@@ -433,9 +433,9 @@ def save(obj, f, save_closure=torch.save, **kwargs):
     save_closure(obj, f, **kwargs)
     comm.get().barrier()
 
-def _ensure_is_tensor(input):
+def _ensure_is_tensor(input, device=None):
     if not (is_encrypted_tensor(input) or torch.is_tensor(input)):
-        return torch.tensor(input)
+        return torch.tensor(input, device=device)
     else:
         return input
 
@@ -444,6 +444,23 @@ def _ensure_encrypted(input):
         return crypten.cryptensor(input)
     else:
         return input
+
+def _find_common_device(inputs):
+    devices = set()
+    
+    for input in inputs:
+        if is_encrypted_tensor(input) or torch.is_tensor(input):
+            devices.add(input.device)
+    
+    # print(f"{devices=}")
+    
+    if len(devices) == 0:
+        return None
+    elif len(devices) > 1:
+        raise ValueError(f"Multiple devices found: {devices}")
+    else:
+        return devices.pop()
+    
 
 def _ensure_uniform_scale(tensors):
     """ Rescale a list of arithmatic tensors to the most percsise scale among inputs"""
@@ -496,7 +513,11 @@ def where(condition, input, other):
     # elif torch.is_tensor(condition):
     #     condition = condition.float()
     # return input * condition + other * (1 - condition)
-    condition, input, other = _ensure_is_tensor(condition), _ensure_is_tensor(input), _ensure_is_tensor(other)
+    common_device = _find_common_device([condition, input, other])
+    
+    # print(f"{common_device=}")
+    
+    condition, input, other = _ensure_is_tensor(condition, common_device), _ensure_is_tensor(input, common_device), _ensure_is_tensor(other, common_device)
     
     if is_encrypted_tensor(condition):
         values_encrypted = is_encrypted_tensor(input) or is_encrypted_tensor(other)
