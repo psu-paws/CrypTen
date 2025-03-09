@@ -13,6 +13,7 @@ functions:
   softmax_lower_thres: False
 
   # exponential function
+  exp_method: "crypten"
   exp_iterations: 8
 
   # reciprocal configuration
