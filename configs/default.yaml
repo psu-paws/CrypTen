@@ -43,8 +43,9 @@ functions:
   erf_method: "crypten"
   erf_iterations: 8
 
-  #matmul: "cutlass"
-  matmul: "crypten"
+  matmul: "cutlass"
+  conv: "cutlass"
+  #matmul: "crypten"
 mpc:
   active_security: False
   provider: "TFP"

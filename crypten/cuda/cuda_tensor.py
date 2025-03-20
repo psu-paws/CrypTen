@@ -194,47 +194,78 @@ class CUDALongTensor(object):
 
     @staticmethod
     def __patched_conv_ops(op, x, y, *args, **kwargs):
-        # Kiwan: Fixed following a comment from https://github.com/facebookresearch/CrypTen/issues/386
-        # to make Conv2d training work on GPU
-        if "groups" in kwargs:
-            groups = kwargs["groups"]
-            #assert (
-            #    groups == 1
-            #), f"more than one group is unsupported on GPU (groups = {groups})"
-            del kwargs["groups"]
+        if cfg.functions.matmul == "cutlass":
+            assert(op == "conv2d")
+            import conv2d64
+            BS, CI, H, W = tuple(x.shape)
+            CO, CI_, FH, FW = tuple(y.shape)
+            assert(CI == CI_)
+
+            stride = 1 if "stride" not in kwargs else kwargs["stride"]
+            padding = 0 if "padding" not in kwargs else kwargs["padding"]
+            if isinstance(stride, list):
+                assert(stride[0] == stride[1])
+                stride = stride[0]
+            if isinstance(padding, list):
+                assert(padding[0] == padding[1])
+                padding = padding[0]
+
+            OH = ((H - FH + 2 * padding) // stride) + 1
+            OW = ((W - FW + 2 * padding) // stride) + 1
+
+            out = torch.zeros([BS, OH, OW, CO], dtype=torch.long).to(x.device)
+            # Cutlass uses NHWC
+            x_r = x.tensor().permute(0, 2, 3, 1).contiguous()
+            if hasattr(y, "tensor"):
+                y_r = y.tensor().permute(0, 2, 3, 1).contiguous()
+            else:
+                y_r = y.permute(0, 2, 3, 1).contiguous()
+
+            conv2d64.conv2d(x_r, y_r, out, BS, CI, H, W, CO, FH, FW, stride, padding)
+            out = out.permute(0, 3, 1, 2)
+            return CUDALongTensor(out)
         else:
-            groups = 1
+            # Kiwan: Fixed following a comment from https://github.com/facebookresearch/CrypTen/issues/386
+            # to make Conv2d training work on GPU
+            if "groups" in kwargs:
+                groups = kwargs["groups"]
+                #assert (
+                #    groups == 1
+                #), f"more than one group is unsupported on GPU (groups = {groups})"
+                del kwargs["groups"]
+            else:
+                groups = 1
 
-        bs, c, *img = x.size()
-        c_out, c_in, *ks = y.size()
-        kernel_elements = functools.reduce(operator.mul, ks)
+            bs, c, *img = x.size()
+            c_out, c_in, *ks = y.size()
+            kernel_elements = functools.reduce(operator.mul, ks)
 
-        # Kiwan: nb = 3 causes overflow. Fix to nb = 4
-        # Related: https://github.com/facebookresearch/CrypTen/issues/307
+            # Kiwan: nb = 3 causes overflow. Fix to nb = 4
+            # Related: https://github.com/facebookresearch/CrypTen/issues/307
 
-        #nb = 3 if kernel_elements < 256 else 4
-        nb = 4
-        nb2 = nb**2
+            #nb = 3 if kernel_elements < 256 else 4
+            nb = 4
+            nb2 = nb**2
 
-        x_encoded = CUDALongTensor.__encode_as_fp64(x, nb).data
-        y_encoded = CUDALongTensor.__encode_as_fp64(y, nb).data
+            x_encoded = CUDALongTensor.__encode_as_fp64(x, nb).data
+            y_encoded = CUDALongTensor.__encode_as_fp64(y, nb).data
 
-        repeat_idx = [1] * (x_encoded.dim() - 1)
-        x_enc_span = x_encoded.repeat(nb, *repeat_idx)
-        y_enc_span = torch.repeat_interleave(y_encoded, repeats=nb, dim=0)
+            repeat_idx = [1] * (x_encoded.dim() - 1)
+            x_enc_span = x_encoded.repeat(nb, *repeat_idx)
+            y_enc_span = torch.repeat_interleave(y_encoded, repeats=nb, dim=0)
 
-        x_enc_span = x_enc_span.transpose_(0, 1).reshape(bs, nb2 * c, *img)
-        y_enc_span = y_enc_span.reshape(nb2 * c_out, c_in, *ks)
+            x_enc_span = x_enc_span.transpose_(0, 1).reshape(bs, nb2 * c, *img)
+            y_enc_span = y_enc_span.reshape(nb2 * c_out, c_in, *ks)
 
-        c_z = c_out if op in ["conv1d", "conv2d"] else c_in
+            c_z = c_out if op in ["conv1d", "conv2d"] else c_in
 
-        z_encoded = getattr(torch, op)(
-            x_enc_span, y_enc_span, *args, **kwargs, groups=(nb2 * groups)
-        )
-        z_encoded = z_encoded.reshape(bs, nb2, c_z, *z_encoded.size()[2:]).transpose_(
-            0, 1
-        )
-        return CUDALongTensor.__decode_as_int64(z_encoded, nb)
+            z_encoded = getattr(torch, op)(
+                x_enc_span, y_enc_span, *args, **kwargs, groups=(nb2 * groups)
+            )
+            z_encoded = z_encoded.reshape(bs, nb2, c_z, *z_encoded.size()[2:]).transpose_(
+                0, 1
+            )
+            return CUDALongTensor.__decode_as_int64(z_encoded, nb)
 
     @staticmethod
     def stack(tensors, *args, **kwargs):
