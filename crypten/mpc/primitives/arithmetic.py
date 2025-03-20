@@ -458,7 +458,13 @@ class ArithmeticSharedTensor:
             result.share = torch.broadcast_tensors(result.share, y.share)[0].clone()
         elif is_tensor(y):
             result.share = torch.broadcast_tensors(result.share, y)[0].clone()
-        return result.div_(y)
+        val = result.div_(y)
+        dec_val = val.get_plain_text()
+        # print(f"DIV {dec_val.max()=}")
+        # print(f"DIV {dec_val.min()=}")
+        # print(f"DIV {dec_val.mean()=}")
+        
+        return val
 
     def div_(self, y):
         """Divide two tensors element-wise"""
@@ -480,11 +486,38 @@ class ArithmeticSharedTensor:
                 protocol = globals()[cfg.mpc.protocol]
                 protocol.truncate(self, y)
             elif cfg.mpc.truncation == "aby3":
+                # plain_text = self.get_plain_text()
+                # print(f"{plain_text.max()=}")
+                # print(f"{plain_text.min()=}")
+                # print(f"{plain_text.mean()=}")
+                # print(f"{y=}")
                 protocol = globals()[cfg.mpc.protocol]
                 protocol.truncate_aby3(self, y)
+                # plain_text = self.get_plain_text()
+                # print(f"POST {plain_text.max()=}")
+                # print(f"POST {plain_text.min()=}")
+                # print(f"POST {plain_text.mean()=}")
+                # print(f"POST {y=}")
+            elif cfg.mpc.truncation == "exact":
+                plain_text = self.get_plain_text()
+                # print(f"{plain_text.max()=}")
+                # print(f"{plain_text.min()=}")
+                # print(f"{plain_text.mean()=}")
+                # print(f"{y=}")
+                # if y == 4096:
+                #     raise RuntimeError("INTENTIONAL CRASH")
+                exact_val = plain_text / y
+                # print(f"{exact_val.max()=}")
+                # print(f"{exact_val.min()=}")
+                # print(f"{exact_val.mean()=}")
+                
+                self.copy_(ArithmeticSharedTensor(exact_val))
+                # plain_text = self.get_plain_text()
+                # print(f"POST {plain_text.max()=}")
+                # print(f"POST {plain_text.min()=}")
+                # print(f"POST {plain_text.mean()=}")
+                # print(f"POST {self.encoder.scale=}")
             else:
-                #exact_val = self.get_plain_text() / y
-                #self = ArithmeticSharedTensor(exact_val)
                 self.share = self.share.div_(y, rounding_mode="trunc")
 
             # Validate
