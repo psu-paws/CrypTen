@@ -18,7 +18,7 @@ from crypten.common import serial
 from torch.distributed import ReduceOp
 
 from .communicator import _logging, Communicator
-
+from ..config import cfg
 
 class DistributedCommunicator(Communicator):
     """
@@ -189,16 +189,25 @@ class DistributedCommunicator(Communicator):
         """Reduces the input data across all parties; all get the final result."""
         assert dist.is_initialized(), "initialize the communicator first"
 
+        #print("ALL REDUCE in!", len(input), input[0].data.shape)
         if batched:
             assert isinstance(input, list), "batched reduce input must be a list"
             reqs = []
             result = [x.clone() for x in input]
             for tensor in result:
-                reqs.append(
-                    dist.all_reduce(
-                        tensor.data, op=op, group=self.main_group, async_op=True
+                if cfg.communicator.comm_backend == "nccl" and op == ReduceOp.BXOR:
+                    gathered = [torch.empty_like(tensor.data) for _ in range(self.world_size)]
+                    dist.all_gather(gathered, tensor.data)
+                    res = gathered[0]
+                    for i in range(1, self.world_size):
+                        res = torch.bitwise_xor(res, gathered[i])
+                    tensor._tensor.data = res
+                else:
+                    reqs.append(
+                        dist.all_reduce(
+                            tensor.data, op=op, group=self.main_group, async_op=True
+                        )
                     )
-                )
             for req in reqs:
                 req.wait()
         else:
@@ -206,7 +215,16 @@ class DistributedCommunicator(Communicator):
                 input.data
             ), "unbatched input for reduce must be a torch tensor"
             result = input.clone()
-            dist.all_reduce(result.data, op=op, group=self.main_group)
+            if cfg.communicator.comm_backend == "nccl" and op == ReduceOp.BXOR:
+                gathered = [torch.empty_like(result.data) for _ in range(self.world_size)]
+                dist.all_gather(gathered, result.data)
+                result._tensor.data = gathered[0]
+                for i in range(1, self.world_size):
+                    result._tensor.data = torch.bitwise_xor(result.data, gathered[i])
+            else:
+                dist.all_reduce(result.data, op=op, group=self.main_group)
+        #print("ALL REDUCE!", result.data.shape)
+        #exit(0)
         return result
 
     @_logging

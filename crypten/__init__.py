@@ -215,7 +215,13 @@ def _setup_prng():
 
     # Create global generator - All parties share one global generator for sync'd rng
     global_seed = int.from_bytes(os.urandom(8), "big") - 2**63
+
+
     global_seed = torch.tensor(global_seed)
+    rank = comm.get().get_rank()
+    if cfg.communicator.comm_backend == "nccl":
+        global_seed = global_seed.to(f"cuda:{rank}")
+        next_seed = next_seed.to(f"cuda:{rank}")
 
     _sync_seeds(next_seed, local_seed, global_seed)
 
@@ -230,22 +236,31 @@ def _sync_seeds(next_seed, local_seed, global_seed):
     global generators
 
     # Populated by recieving the previous party's next_seed (irecv)
+    rank = comm.get().get_rank()
     prev_seed = torch.tensor([0], dtype=torch.long)
+    if cfg.communicator.comm_backend == "nccl":
+        prev_seed = prev_seed.to(f"cuda:{rank}")
 
     # Send random seed to next party, receive random seed from prev party
     world_size = comm.get().get_world_size()
-    rank = comm.get().get_rank()
     if world_size >= 2:  # Guard against segfaults when world_size == 1.
         next_rank = (rank + 1) % world_size
         prev_rank = (next_rank - 2) % world_size
 
-        req0 = comm.get().isend(next_seed, next_rank)
-        req1 = comm.get().irecv(prev_seed, src=prev_rank)
+        # Kiwan: NCCL has a bug (?) where the isend and irecv order has to be
+        # different for rank 0 and 1 to not hang.
+        if rank == 0:
+            req0 = comm.get().isend(next_seed, next_rank)
+            req1 = comm.get().irecv(prev_seed, src=prev_rank)
+        else:
+            req1 = comm.get().irecv(prev_seed, src=prev_rank)
+            req0 = comm.get().isend(next_seed, next_rank)
 
         req0.wait()
         req1.wait()
     else:
         prev_seed = next_seed
+    torch.cuda.synchronize()
 
     prev_seed = prev_seed.item()
     next_seed = next_seed.item()
@@ -649,7 +664,7 @@ def __multiprocess_print_helper(print_func, *args, in_order=False, dst=0, **kwar
     if comm.get().get_rank() in dst:
         print_func(*args, **kwargs)
 
-
+'''
 def print(*args, in_order=False, dst=0, **kwargs):
     """
     Prints with formatting options that account for multiprocessing. This
@@ -669,7 +684,7 @@ def print(*args, in_order=False, dst=0, **kwargs):
     __multiprocess_print_helper(
         builtins.print, *args, in_order=in_order, dst=dst, **kwargs
     )
-
+'''
 
 def log(*args, in_order=False, dst=0, **kwargs):
     """

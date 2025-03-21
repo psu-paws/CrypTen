@@ -1,5 +1,7 @@
 communicator:
   verbose: False
+  #comm_backend: "gloo"
+  comm_backend: "nccl"
 debug:
   debug_mode: False
   validation_mode: False
