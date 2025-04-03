@@ -43,7 +43,11 @@ def max_pool2d(
         pad_value=(-(2**24)),
         # TODO: Find a better solution for padding with max_pooling
     )
-    max_vals, argmax_vals = max_input.max(dim=-1, one_hot=True)
+    
+    if return_indices:
+        max_vals, argmax_vals = max_input.max(dim=-1, one_hot=True)
+    else:
+        max_vals = max_input.amax(dim=-1)
     max_vals = max_vals.view(output_size)
     if return_indices:
         if isinstance(kernel_size, int):

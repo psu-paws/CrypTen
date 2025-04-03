@@ -16,6 +16,7 @@ __all__ = [
     "argmax",
     "argmin",
     "max",
+    "amax",
     "min",
 ]
 
@@ -49,6 +50,12 @@ def argmin(self, dim=None, keepdim=False, one_hot=True):
 
 
 def max(self, dim=None, keepdim=False, one_hot=True):
+    return max_helper(self, dim=dim, keepdim=keepdim, one_hot=one_hot)
+
+def amax(self, dim=None, keepdim=False):
+    return max_helper(self, dim=dim, keepdim=keepdim, include_argmax=False)
+
+def max_helper(self, dim=None, keepdim=False, one_hot=True, *, include_argmax=True):
     """Returns the maximum value of all elements in the input tensor."""
     method = cfg.functions.max_method
     if dim is None:
@@ -62,9 +69,20 @@ def max(self, dim=None, keepdim=False, one_hot=True):
             max_result = self.mul(argmax_result).sum()
         return max_result
     else:
-        argmax_result, max_result = _argmax_helper(
-            self, dim=dim, one_hot=True, method=method, _return_max=True
-        )
+        if include_argmax:
+            argmax_result, max_result = _argmax_helper(
+                self, dim=dim, one_hot=True, method=method, _return_max=True
+            )
+        else:
+            if method in ["log_reduction", "double_log_reduction"]:
+                # max_result can be obtained directly
+                max_result = _max_helper_all_tree_reductions(self, method=method, dim=dim)
+            else:
+            # max_result needs to be obtained through argmax
+                with cfg.temp_override({"functions.max_method": method}):
+                    argmax_result = self.argmax(one_hot=True, dim=dim)
+                max_result = self.mul(argmax_result).sum()
+            argmax_result = None
         if max_result is None:
             max_result = (self * argmax_result).sum(dim=dim, keepdim=keepdim)
         if keepdim:
@@ -73,13 +91,17 @@ def max(self, dim=None, keepdim=False, one_hot=True):
                 if max_result.dim() < self.dim()
                 else max_result
             )
-        if one_hot:
-            return max_result, argmax_result
+            
+        if include_argmax:
+            if one_hot:
+                return max_result, argmax_result
+            else:
+                return (
+                    max_result,
+                    _one_hot_to_index(argmax_result, dim, keepdim, self.device),
+                )
         else:
-            return (
-                max_result,
-                _one_hot_to_index(argmax_result, dim, keepdim, self.device),
-            )
+            return max_result
 
 
 def min(self, dim=None, keepdim=False, one_hot=True):
@@ -141,15 +163,11 @@ def _max_helper_log_reduction(enc_tensor, dim=None):
         dim_used = 0
         input = enc_tensor.flatten()
     n = input.size(dim_used)  # number of items in the dimension
-    steps = int(math.log(n))
+    # steps = int(math.log(n))
+    steps = (int(n) - 1).bit_length() # number of steps needed in log reduction
     enc_tensor_reduced = _compute_pairwise_comparisons_for_steps(input, dim_used, steps)
 
-    # compute max over the resulting reduced tensor with n^2 algorithm
-    # note that the resulting one-hot vector we get here finds maxes only
-    # over the reduced vector in enc_tensor_reduced, so we won't use it
-    with cfg.temp_override({"functions.max_method": "pairwise"}):
-        enc_max_vec, enc_one_hot_reduced = enc_tensor_reduced.max(dim=dim_used)
-    return enc_max_vec
+    return enc_tensor_reduced
 
 
 def _max_helper_double_log_recursive(enc_tensor, dim):
