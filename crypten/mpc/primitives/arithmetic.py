@@ -459,7 +459,7 @@ class ArithmeticSharedTensor:
         elif is_tensor(y):
             result.share = torch.broadcast_tensors(result.share, y)[0].clone()
         val = result.div_(y)
-        dec_val = val.get_plain_text()
+        #dec_val = val.get_plain_text()
         # print(f"DIV {dec_val.max()=}")
         # print(f"DIV {dec_val.min()=}")
         # print(f"DIV {dec_val.mean()=}")
