@@ -10,7 +10,7 @@ from contextlib import contextmanager
 import torch
 
 from .debug import register_validation
-from .gradients import AutogradContext, BaseAutogradContext, get_grad_fn
+#from .gradients import AutogradContext, BaseAutogradContext, get_grad_fn
 
 
 # list of all static functions that CrypTensors support:
@@ -191,14 +191,16 @@ class CrypTensor(object, metaclass=CrypTensorMetaclass):
         NOTE: This constructor cannot be called directly. It is only be called
         via `super()` from classes that implement the `CrypTensor` abstraction.
         """
-        self.requires_grad = requires_grad  # whether tensors needs gradient
-        self._reset_gradients()
+        pass
+        #self.requires_grad = requires_grad  # whether tensors needs gradient
+        #self._reset_gradients()
 
     def __new__(cls, *args, **kwargs):
         if cls is CrypTensor:
             raise TypeError("CrypTensor class cannot be instantiated directly.")
         return object.__new__(cls)
 
+    '''
     def _reset_gradients(self):
         """Resets gradient information in tensor."""
         self.grad = None  # gradient itself
@@ -451,6 +453,7 @@ class CrypTensor(object, metaclass=CrypTensorMetaclass):
                 raise e
             assert hasattr(grad_fn, "forward")
             return self._get_forward_function_no_ctx(grad_fn)
+    '''
 
     # Common functions:
     @classmethod

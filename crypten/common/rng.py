@@ -4,9 +4,12 @@
 #
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
+
+# TODO: ADD License. Modified by Kiwan
+
 import crypten
 import torch
-from crypten.cuda import CUDALongTensor
+#from crypten.cuda import CUDALongTensor
 
 
 #def generate_random_ring_element(size, ring_size=(2**64), generator=None, **kwargs):
@@ -44,14 +47,15 @@ def generate_kbit_random_tensor(size, bitlength=None, generator=None, **kwargs):
         bitlength = torch.iinfo(torch.long).bits
     if bitlength == 64:
         return generate_random_ring_element(size, generator=generator, **kwargs)
+    device = kwargs.get("device", torch.device("cpu"))
+    device = torch.device("cpu") if device is None else device
+    device = torch.device(device) if isinstance(device, str) else device
     if generator is None:
-        device = kwargs.get("device", torch.device("cpu"))
-        device = torch.device("cpu") if device is None else device
-        device = torch.device(device) if isinstance(device, str) else device
         generator = crypten.generators["local"][device]
     rand_tensor = torch.randint(
         0, 2**bitlength, size, generator=generator, dtype=torch.long, **kwargs
     )
     if rand_tensor.is_cuda:
-        return CUDALongTensor(rand_tensor)
+        rand_tensor = rand_tensor.to(device)
+        #return CUDALongTensor(rand_tensor)
     return rand_tensor

@@ -17,7 +17,7 @@ from crypten.common.tensor_types import is_float_tensor, is_int_tensor, is_tenso
 from crypten.common.util import torch_stack
 from crypten.config import cfg
 from crypten.cryptensor import CrypTensor
-from crypten.cuda import CUDALongTensor
+#from crypten.cuda import CUDALongTensor
 from crypten.encoder import FixedPointEncoder
 
 from . import beaver, replicated  # noqa: F401

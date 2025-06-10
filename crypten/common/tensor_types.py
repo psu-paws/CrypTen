@@ -5,8 +5,10 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
+# TODO: ADD License: Modified by Kiwan
+
 import torch
-from crypten.cuda import CUDALongTensor
+#from crypten.cuda import CUDALongTensor
 
 
 # helper functions that determine if input is float, int, or base tensor:
@@ -20,7 +22,7 @@ def _is_type_tensor(tensor, types):
 
 def is_tensor(tensor):
     """Checks if the input tensor is a Torch tensor or a CUDALongTensor"""
-    return torch.is_tensor(tensor) or isinstance(tensor, CUDALongTensor)
+    return torch.is_tensor(tensor)# or isinstance(tensor, CUDALongTensor)
 
 
 def is_float_tensor(tensor):

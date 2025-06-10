@@ -5,6 +5,7 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
+'''
 import logging
 import math
 from functools import reduce
@@ -2113,3 +2114,4 @@ class AutogradCrossEntropy(AutogradFunction):
         softmax, target = ctx.saved_tensors
         loss_grad = softmax.sub(target)
         return loss_grad.div_(target.size(0)).mul_(grad_output)
+'''

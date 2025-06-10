@@ -10,6 +10,7 @@
 #
 # This source code was modified for the TODO project.
 
+'''
 import functools
 import math
 import operator
@@ -746,3 +747,4 @@ for func_name in PROPERTY_FUNCTIONS:
 
 for func_name in INPLACE_FUNCTIONS:
     _add_inplace_function(func_name)
+'''

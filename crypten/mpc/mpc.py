@@ -11,7 +11,7 @@ from crypten import communicator as comm
 from crypten.common.tensor_types import is_tensor
 from crypten.common.util import torch_stack
 from crypten.config import cfg
-from crypten.cuda import CUDALongTensor
+#from crypten.cuda import CUDALongTensor
 
 from ..cryptensor import CrypTensor
 from ..encoder import FixedPointEncoder
@@ -126,8 +126,8 @@ class MPCTensor(CrypTensor):
             return self._to_ptype(ptype, **kwargs)
         else:
             share = self.share.to(*args, **kwargs)
-            if share.is_cuda:
-                share = CUDALongTensor(share)
+            #if share.is_cuda:
+            #    share = CUDALongTensor(share)
             self.share = share
             return self
 

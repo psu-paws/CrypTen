@@ -13,7 +13,7 @@ from crypten.common.functions import regular
 from crypten.common.rng import generate_kbit_random_tensor
 from crypten.common.tensor_types import is_tensor
 from crypten.common.util import torch_cat, torch_stack
-from crypten.cuda import CUDALongTensor
+#from crypten.cuda import CUDALongTensor
 from crypten.encoder import FixedPointEncoder
 
 from . import beaver, circuit
@@ -101,11 +101,13 @@ class BinarySharedTensor:
         return BinarySharedTensor(*args, **kwargs)
 
     @staticmethod
-    def from_shares(share, precision=None, src=0, device=None):
+    def from_shares(share, precision=None, src=0, device=None, dtype="long"):
+        # TODO: TODO: TODO: Always pass correct dtype
         """Generate a BinarySharedTensor from a share from each party"""
         result = BinarySharedTensor(src=SENTINEL)
         share = share.to(device) if device is not None else share
-        result.share = CUDALongTensor(share) if share.is_cuda else share
+        #result.share = CUDALongTensor(share) if share.is_cuda else share
+        result.share = getattr(share, dtype)()
         result.encoder = FixedPointEncoder(precision_bits=precision)
         return result
 
