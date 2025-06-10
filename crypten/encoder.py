@@ -32,11 +32,12 @@ def nearest_integer_division(tensor, integer):
 class FixedPointEncoder:
     """Encoder that encodes long or float tensors into scaled integer tensors."""
 
-    def __init__(self, precision_bits=None):
+    def __init__(self, precision_bits=None, dtype="long"):
         if precision_bits is None:
             precision_bits = cfg.encoder.precision_bits
         self._precision_bits = precision_bits
         self._scale = int(2**precision_bits)
+        self._dtype = dtype
 
     def encode(self, x, device=None):
         """Helper function to wrap data if needed"""
@@ -45,21 +46,20 @@ class FixedPointEncoder:
         elif isinstance(x, int) or isinstance(x, float):
             # Squeeze in order to get a 0-dim tensor with value `x`
             return torch.tensor(
-                [self._scale * x], dtype=torch.long, device=device
+                [self._scale * x], dtype=getattr(torch, self._dtype), device=device
             ).squeeze()
         elif isinstance(x, list):
             return (
-                torch.tensor(x, dtype=torch.float, device=device)
-                .mul_(self._scale)
-                .long()
+                getattr(torch.tensor(x, dtype=torch.float, device=device)
+                .mul_(self._scale), self._dtype)()
             )
         elif is_float_tensor(x):
-            return (self._scale * x).long()
+            return getattr(self._scale * x, self._dtype)()
         # For integer types cast to long prior to scaling to avoid overflow.
         elif is_int_tensor(x):
-            return self._scale * x.long()
+            return self._scale * getattr(x, self._dtype)()
         elif isinstance(x, np.ndarray):
-            return self._scale * torch.from_numpy(x).long().to(device)
+            return self._scale * getattr(torch.from_numpy(x), self._dtype)().to(device)
         elif torch.is_tensor(x):
             raise TypeError("Cannot encode input with dtype %s" % x.dtype)
         else:
@@ -71,10 +71,10 @@ class FixedPointEncoder:
             return None
         assert is_int_tensor(tensor), "input must be a LongTensor"
         if self._scale > 1:
-            correction = (tensor < 0).long()
+            correction = getattr((tensor < 0), self._dtype)()
             dividend = tensor.div(self._scale - correction, rounding_mode="floor")
             remainder = tensor % self._scale
-            remainder += (remainder == 0).long() * self._scale * correction
+            remainder += getattr((remainder == 0), self._dtype)() * self._scale * correction
 
             tensor = dividend.float() + remainder.float() / self._scale
         else:

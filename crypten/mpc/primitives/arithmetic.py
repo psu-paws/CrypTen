@@ -47,6 +47,7 @@ class ArithmeticSharedTensor:
         precision=None,
         src=0,
         device=None,
+        dtype="long",
     ):
         """
         Creates the shared tensor from the input `tensor` provided by party `src`.
@@ -90,7 +91,7 @@ class ArithmeticSharedTensor:
             device = tensor.device
 
         # encode the input tensor:
-        self.encoder = FixedPointEncoder(precision_bits=precision)
+        self.encoder = FixedPointEncoder(precision_bits=precision, dtype=dtype)
         if tensor is not None:
             if is_int_tensor(tensor) and precision != 0:
                 tensor = tensor.float()
@@ -103,7 +104,7 @@ class ArithmeticSharedTensor:
             size = comm.get().broadcast_obj(size, src)
 
         # generate pseudo-random zero sharing (PRZS) and add source's tensor:
-        self.share = ArithmeticSharedTensor.PRZS(size, device=device).share
+        self.share = ArithmeticSharedTensor.PRZS(size, device=device, dtype=dtype).share
         if self.rank == src:
             self.share += tensor
 
@@ -150,16 +151,17 @@ class ArithmeticSharedTensor:
         self._tensor = value
 
     @staticmethod
-    def from_shares(share, precision=None, device=None):
+    def from_shares(share, precision=None, device=None, dtype="long"):
         """Generate an ArithmeticSharedTensor from a share from each party"""
         result = ArithmeticSharedTensor(src=SENTINEL)
         share = share.to(device) if device is not None else share
-        result.share = CUDALongTensor(share) if share.is_cuda else share
-        result.encoder = FixedPointEncoder(precision_bits=precision)
+        result.share = getattr(share, dtype)()
+        #result.share = CUDALongTensor(share) if share.is_cuda else share
+        result.encoder = FixedPointEncoder(precision_bits=precision, dtype=dtype)
         return result
 
     @staticmethod
-    def PRZS(*size, device=None):
+    def PRZS(*size, device=None, dtype="long"):
         """
         Generate a Pseudo-random Sharing of Zero (using arithmetic shares)
 
@@ -176,8 +178,8 @@ class ArithmeticSharedTensor:
             device = torch.device(device)
         g0 = generators["prev"][device]
         g1 = generators["next"][device]
-        current_share = generate_random_ring_element(*size, generator=g0, device=device)
-        next_share = generate_random_ring_element(*size, generator=g1, device=device)
+        current_share = generate_random_ring_element(*size, generator=g0, device=device, dtype=dtype)
+        next_share = generate_random_ring_element(*size, generator=g1, device=device, dtype=dtype)
         tensor.share = current_share - next_share
         return tensor
 

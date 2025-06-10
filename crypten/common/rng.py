@@ -9,12 +9,19 @@ import torch
 from crypten.cuda import CUDALongTensor
 
 
-def generate_random_ring_element(size, ring_size=(2**64), generator=None, **kwargs):
+#def generate_random_ring_element(size, ring_size=(2**64), generator=None, **kwargs):
+def generate_random_ring_element(size, dtype="long", generator=None, **kwargs):
     """Helper function to generate a random number from a signed ring"""
+    if dtype == "long":
+        ring_size = 2 ** 64
+    elif dtype == "int":
+        ring_size = 2 ** 32
+    else:
+        raise NotImplementedError(ring_size)
+    device = kwargs.get("device", torch.device("cpu"))
+    device = torch.device("cpu") if device is None else device
+    device = torch.device(device) if isinstance(device, str) else device
     if generator is None:
-        device = kwargs.get("device", torch.device("cpu"))
-        device = torch.device("cpu") if device is None else device
-        device = torch.device(device) if isinstance(device, str) else device
         generator = crypten.generators["local"][device]
     # TODO (brianknott): Check whether this RNG contains the full range we want.
     rand_element = torch.randint(
@@ -22,11 +29,12 @@ def generate_random_ring_element(size, ring_size=(2**64), generator=None, **kwar
         (ring_size - 1) // 2,
         size,
         generator=generator,
-        dtype=torch.long,
+        dtype=getattr(torch, dtype),
         **kwargs,
     )
     if rand_element.is_cuda:
-        return CUDALongTensor(rand_element)
+        rand_element = rand_element.to(device)
+    #    return CUDALongTensor(rand_element)
     return rand_element
 
 
